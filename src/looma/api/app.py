@@ -928,6 +928,8 @@ class GitStatus(BaseModel):
     head: str | None  # None before the first commit
     base: str | None
     remote: str | None
+    remote_url: str | None  # the remote's address, without any login written into it
+    branch_url: str | None  # this branch's page on GitHub, once it's on the remote
     upstream: str | None
     ahead: int  # commits to push
     behind: int  # commits to pull
@@ -962,6 +964,7 @@ class GitResult(BaseModel):
     done: bool  # false for a preview, and when it stopped on conflicts
     message: str
     conflicts: list[str]
+    url: str | None = None  # where to see the result on GitHub, checked against the remote
 
 
 class CommitSuggestion(BaseModel):
