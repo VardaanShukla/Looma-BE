@@ -70,15 +70,11 @@ def fetch(repo: Path, timeout: float = 30) -> str | None:
     there. Touches only remote-tracking refs, never local branches or files. Returns
     None on success, or a short reason it failed. Never prompts: a remote that needs a
     password or an unlocked key simply fails."""
-    env = {
-        **os.environ,
-        "GIT_TERMINAL_PROMPT": "0",
-        "GIT_SSH_COMMAND": os.environ.get("GIT_SSH_COMMAND", "ssh") + " -o BatchMode=yes",
-    }
     try:
         result = subprocess.run(
             ["git", "fetch", "--all", "--prune", "--quiet", "--no-write-fetch-head"],
-            cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env, timeout=timeout,
+            cwd=repo, capture_output=True, text=True, encoding="utf-8", errors="replace", env=remote_env(),
+            timeout=timeout,
             stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired:
@@ -87,3 +83,13 @@ def fetch(repo: Path, timeout: float = 30) -> str | None:
         lines = [line for line in result.stderr.strip().splitlines() if line.strip()]
         return lines[-1] if lines else "git fetch failed"
     return None
+
+
+def remote_env() -> dict[str, str]:
+    """The environment for git commands that reach a remote: they fail rather than wait for a
+    password or a key's passphrase that no one is there to type."""
+    return {
+        **os.environ,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_SSH_COMMAND": os.environ.get("GIT_SSH_COMMAND", "ssh") + " -o BatchMode=yes",
+    }

@@ -13,7 +13,7 @@ THEMES = ("dark", "light")
 # The side menu's screens in order, numbered 1, 2, … by default; then the screens that are
 # sections of Home (This branch, Branch flow, Project map), which have no key unless set.
 MENU = ("home", "digest", "summary", "kt", "ask", "changes", "commits", "project")
-VIEWS = (*MENU, "overview", "flow", "map", "help", "settings")
+VIEWS = (*MENU, "overview", "flow", "map", "git", "help", "settings")
 ACTIONS = (*(f"view:{view}" for view in VIEWS), "theme", "uncommitted", "sync", "next-file", "previous-file")
 DEFAULT_SHORTCUTS = {
     **{f"view:{view}": str(n) for n, view in enumerate(MENU, start=1)},

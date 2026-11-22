@@ -25,6 +25,7 @@ from looma import preferences as preferences_module
 from looma import retention
 from looma import codecommit
 from looma import git
+from looma import gitops
 from looma import github
 from looma import projectmap
 from looma import providers
@@ -890,6 +891,83 @@ class ChangeRef(BaseModel):
     change: str  # a digest change's id
 
 
+class GitFile(BaseModel):
+    path: str
+    old_path: str | None
+    staged: str | None  # how it changed in the next commit: added, modified, deleted, renamed, copied
+    unstaged: str | None  # how it changed since, not added yet; "new" for a file git doesn't track
+    conflict: bool  # changed on both sides of a merge, rebase or stash
+
+
+class GitStash(BaseModel):
+    sha: str
+    index: int
+    message: str
+    at: str
+
+
+class GitBranch(BaseModel):
+    name: str
+    current: bool
+    upstream: str | None
+    gone: bool  # its remote copy was deleted
+    unmerged: int  # commits not in the base branch
+
+
+class GitLastAction(BaseModel):
+    id: int
+    action: str
+    summary: str
+    at: str
+    undoable: bool
+    why_not: str | None
+
+
+class GitStatus(BaseModel):
+    branch: str | None  # None on a detached HEAD
+    head: str | None  # None before the first commit
+    base: str | None
+    remote: str | None
+    upstream: str | None
+    ahead: int  # commits to push
+    behind: int  # commits to pull
+    pushed: bool  # the last commit is on the remote
+    midway: Literal["merge", "rebase", "cherry-pick", "revert"] | None  # a step that stopped on conflicts
+    conflicts: list[str]
+    files: list[GitFile]
+    stashes: list[GitStash]
+    branches: list[GitBranch]
+    remote_branches: list[str]  # on the remote with no copy here
+    last: GitLastAction | None  # the Git screen's last step, which Undo takes back
+
+
+class GitRequest(BaseModel):
+    preview: bool = False  # only say which commands it would run
+    name: str | None = None
+    new_name: str | None = None
+    start: Literal["current", "base"] = "current"
+    force: bool = False
+    remote: bool = False  # deleting a branch: on the remote too
+    paths: list[str] | None = None  # None: every file
+    message: str | None = None
+    how: Literal["merge", "rebase"] = "merge"
+    base: str | None = None
+    sha: str | None = None  # a stash, by its commit
+
+
+class GitResult(BaseModel):
+    commands: list[str]
+    summary: str
+    notes: list[str]
+    done: bool  # false for a preview, and when it stopped on conflicts
+    message: str
+    conflicts: list[str]
+
+
+class CommitSuggestion(BaseModel):
+    message: str
+
+
 class Undone(BaseModel):
     change: str
     undone_at: str | None
@@ -1080,6 +1158,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Looma", version="0.1.0")
     sync_locks: dict[int, threading.Lock] = {}
     sync_results: dict[int, dict] = {}
+    git_locks: dict[int, threading.Lock] = {}
     app.add_middleware(CORSMiddleware, allow_origins=DEV_ORIGINS,
                        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                        allow_headers=["*"])
@@ -1253,6 +1332,38 @@ def create_app() -> FastAPI:
             with lock:  # another request is fetching; wait for its result
                 pass
         return Sync(**sync_results.get(repo_id, {"synced_at": None, "error": None}))
+
+    @app.get("/api/repos/{repo_id}/git", response_model=GitStatus)
+    def git_status(repo_id: int):
+        """What the Git screen shows: files, branches, stashes, whether anything stopped halfway."""
+        return gitops.status(_git_path(repo_id, "The Git screen"), repo_id)
+
+    @app.post("/api/repos/{repo_id}/git/suggest-message", response_model=CommitSuggestion)
+    def git_suggest_message(repo_id: int):
+        """A commit message for what's added to the next commit, written by the AI picked in Settings."""
+        path = _git_path(repo_id, "The Git screen")
+        try:
+            diff, files = gitops.staged_diff(path)
+            return CommitSuggestion(message=explain_module.commit_message(diff, files))
+        except gitops.GitOpsError as error:
+            raise HTTPException(409, str(error))
+        except explain_module.ExplainError as error:
+            raise _explain_failed(error)
+
+    @app.post("/api/repos/{repo_id}/git/{action}", response_model=GitResult)
+    def git_action(repo_id: int, action: str, body: GitRequest):
+        """Runs one git step (or with preview, says which commands it would run). One at a
+        time per project; 409 with a plain reason when git refuses."""
+        path = _git_path(repo_id, "The Git screen")
+        lock = git_locks.setdefault(repo_id, threading.Lock())
+        if not lock.acquire(blocking=False):
+            raise HTTPException(409, "Another git step is still running in this project. Wait for it to finish.")
+        try:
+            return gitops.perform(path, repo_id, action, body.model_dump(), preview=body.preview)
+        except gitops.GitOpsError as error:
+            raise HTTPException(409, str(error))
+        finally:
+            lock.release()
 
     @app.get("/api/repos/{repo_id}/flow", response_model=Flow)
     def flow(repo_id: int, limit: int = Query(flow_module.LIMIT, ge=1, le=300)):
