@@ -879,6 +879,26 @@ def answer(question: str, history: list[dict], context: dict) -> dict:
     return {"answer": reply.strip(), "files": list(dict.fromkeys(cited))[:8], "follow_ups": more[:3]}
 
 
+def commit_message(diff: str, files: list[str]) -> str:
+    """A commit message for the changes added to the next commit, written by the AI picked in Settings."""
+    budget = prompt_budget()
+    prompt = _fit(redact(
+        "Write a git commit message for the changes below, which are about to be committed.\n\n"
+        f"Files: {', '.join(files[:40])}\n\nThe changes:\n{diff}\n\n"
+        "The first line says what the commit does in under 72 characters, starting with a verb like Add, Fix "
+        "or Change, with no full stop. If the reason isn't obvious from that line, add a blank line and one or "
+        "two short sentences on why. Don't name files unless that is the whole point. "
+        'Reply with only {"message": "<the commit message>"}.'), budget)
+    text = _run(prompt)
+    try:
+        message = _parse(text).get("message")
+    except ExplainError:
+        message = text  # a small model that answered with the message alone
+    if not isinstance(message, str) or not message.strip():
+        raise ExplainError("The AI didn't write a message. Try again, or write one yourself.")
+    return message.strip().strip("`").strip()
+
+
 # Words that make a question about Looma itself rather than the project. A small model's prompt
 # has room for the guide to Looma only then; a large one always gets it.
 LOOMA_WORDS = re.compile(

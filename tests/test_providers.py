@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import socket
 import sys
 import threading
@@ -25,8 +26,14 @@ def no_ai_on_path(tmp_path, monkeypatch):
     """A PATH and home with no AI tools, so only the fakes each test adds are found."""
     folder = tmp_path / "bin"
     folder.mkdir(exist_ok=True)
-    git = os.path.dirname(os.popen("command -v git").read().strip())
-    monkeypatch.setenv("PATH", f"{folder}{os.pathsep}{git}")
+    # Only the tools Looma and the fakes need, linked in one by one: putting their folder on
+    # PATH (often /usr/bin) would also let in this computer's real nvidia-smi, systemctl,
+    # pkexec and ollama, and the tests would see its GPU and services instead of the fakes.
+    for tool in ("git", "cat"):
+        link = folder / tool
+        if not link.exists():
+            link.symlink_to(shutil.which(tool))
+    monkeypatch.setenv("PATH", str(folder))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     (tmp_path / "home").mkdir(exist_ok=True)
     return folder
