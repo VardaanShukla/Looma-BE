@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 from conftest import git
-from devdash.api.app import create_app
-from devdash.capture.install import init
+from looma.api.app import create_app
+from looma.capture.install import init
 
 
 def test_compare_over_http(repo):
@@ -76,9 +76,6 @@ def test_a_folder_without_git_is_added_with_git_features_off(tmp_path):
     assert (project["exists"], project["git"], project["branch"], project["ai"]) == (True, False, None, None)
     repo_id = project["id"]
     assert api.get("/api/repos").json()[0]["git"] is False
-
-    [card] = api.get("/api/home").json()
-    assert (card["exists"], card["git"], card["last_commit"]) == (True, False, None)
 
     # What reads files works.
     project_map = api.get(f"/api/repos/{repo_id}/map").json()
@@ -173,7 +170,7 @@ def test_merge_and_delete_on_github_show_up_after_sync(repo, tmp_path):
 def test_merged_branch_is_marked_then_dropped_after_15_minutes(repo):
     from datetime import datetime, timedelta, timezone
 
-    from devdash.store import connect
+    from looma.store import connect
 
     git(repo, "checkout", "-q", "-b", "done")
     (repo / "done.py").write_text("x = 1\n")

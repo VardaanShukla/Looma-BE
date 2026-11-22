@@ -1,5 +1,5 @@
-"""Builds the dashboard page from the UI repo into src/devdash/web, where `devdash serve`
-serves it. Run it after changing the UI, then commit src/devdash/web, so that
+"""Builds the dashboard page from the UI repo into src/looma/web, where `looma serve`
+serves it. Run it after changing the UI, then commit src/looma/web, so that
 `pipx install` gets the page with no Node needed on the machine installing it.
 
     python scripts/build_ui.py [path to the UI repo, default ../DevDash-FE]
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
-WEB = HERE / "src" / "devdash" / "web"
+WEB = HERE / "src" / "looma" / "web"
 
 
 def main() -> int:

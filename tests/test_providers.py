@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 from fastapi.testclient import TestClient
 
-from devdash import explain
-from devdash.api.app import create_app
+from looma import explain
+from looma.api.app import create_app
 
 ANSWER = {"summary": "Says hello.", "change": "Louder now.", "improves": ["clarity"], "tradeoffs": [], "check": None}
 SUBJECT = {"path": "app.py", "kind": "function", "name": "hello", "change": "modified",
@@ -60,7 +60,7 @@ if [ "$1 $2" = "login status" ]; then echo 'Logged in using ChatGPT'; exit 0; fi
 if [ "$1" = "exec" ]; then
   out=""; prev=""
   for a in "$@"; do [ "$prev" = "--output-last-message" ] && out="$a"; prev="$a"; done
-  echo "$DEVDASH_INTERNAL $*" >> {calls}
+  echo "$LOOMA_INTERNAL $*" >> {calls}
   cat > {tmp_path}/prompt
   echo '{json.dumps(ANSWER)}' > "$out"
   exit 0
@@ -301,7 +301,7 @@ def test_a_paste_that_isnt_a_model_address_is_refused(curl, said):
 
 
 def test_what_a_curl_says_is_read_without_running_it(tmp_path):
-    from devdash import providers
+    from looma import providers
     marker = tmp_path / "ran"
     found = providers.parse_curl(f"curl -sS -X POST --user me:pw -o {marker} 'https://box.example/v1/chat/completions' "
                                  "-H 'x-api-key: abc' -d @secrets.json")
@@ -393,7 +393,7 @@ def test_ollama_models_are_downloaded_run_and_stopped_from_settings(tmp_path, mo
         running.shutdown()
 
 
-def test_ollama_started_from_devdash_can_be_stopped_from_it(tmp_path, monkeypatch):
+def test_ollama_started_from_looma_can_be_stopped_from_it(tmp_path, monkeypatch):
     folder = no_ai_on_path(tmp_path, monkeypatch)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
@@ -422,7 +422,7 @@ HTTPServer(("127.0.0.1", {port}), H).serve_forever()
 def test_ollama_run_by_its_linux_service_is_stopped_and_started_through_it(tmp_path, monkeypatch):
     """Ollama's Linux installer runs it as a systemd service: Stop and Start go through
     systemctl, with the desktop's password window (pkexec), never a terminal."""
-    from devdash import providers
+    from looma import providers
     folder = no_ai_on_path(tmp_path, monkeypatch)
     calls = tmp_path / "calls"
     fake(folder, "systemctl", 'case "$1" in show) echo loaded;; is-active) echo active;; esac\n')
@@ -459,7 +459,7 @@ def test_ollama_run_by_its_linux_service_is_stopped_and_started_through_it(tmp_p
 
 
 def test_ollama_run_by_hand_is_stopped_with_pkill(tmp_path, monkeypatch):
-    from devdash import providers
+    from looma import providers
     folder = no_ai_on_path(tmp_path, monkeypatch)
     calls = tmp_path / "calls"
     fake(folder, "systemctl", "echo not-found\n")
@@ -474,7 +474,7 @@ def test_ollama_run_by_hand_is_stopped_with_pkill(tmp_path, monkeypatch):
 
 
 def test_an_ollama_on_another_computer_is_not_started_or_stopped_from_here(monkeypatch):
-    from devdash import providers
+    from looma import providers
     monkeypatch.setenv("OLLAMA_HOST", "gpu-box:11434")
     monkeypatch.setattr(providers, "_ollama_running", lambda: True)
     with pytest.raises(providers.ProviderError, match="on another computer"):
@@ -501,7 +501,7 @@ def test_the_usage_chart_reads_the_gpu_and_how_much_of_each_model_is_on_it(tmp_p
 
 
 def test_with_no_gpu_the_usage_chart_shows_the_cpu(tmp_path, monkeypatch):
-    from devdash import providers
+    from looma import providers
     no_ai_on_path(tmp_path, monkeypatch)
     monkeypatch.setattr(providers, "_amd_gpus", lambda: [])
     monkeypatch.setenv("OLLAMA_HOST", "127.0.0.1:9")
@@ -511,7 +511,7 @@ def test_with_no_gpu_the_usage_chart_shows_the_cpu(tmp_path, monkeypatch):
 
 
 def test_the_suggested_model_follows_the_cpu_memory_and_gpu(monkeypatch):
-    from devdash import providers
+    from looma import providers
     computer = {"cpu": "Core i7", "threads": 8, "memory_gb": 15.5, "gpu": "GTX 1650", "gpu_memory_gb": 4.0}
 
     def advice(**changes):
@@ -532,7 +532,7 @@ def test_the_suggested_model_follows_the_cpu_memory_and_gpu(monkeypatch):
 
 
 def test_with_no_model_picked_the_best_one_here_is_used(monkeypatch):
-    from devdash import providers
+    from looma import providers
     gb = 10**9
     monkeypatch.setattr(providers, "_hardware", lambda: {"cpu": None, "threads": 8, "memory_gb": 15.5,
                                                          "gpu": "GTX 1650", "gpu_memory_gb": 4.0})

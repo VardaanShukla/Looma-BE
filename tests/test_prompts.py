@@ -1,4 +1,4 @@
-from devdash.prompts import readable
+from looma.prompts import readable
 
 
 def test_plain_prompt_is_unchanged():

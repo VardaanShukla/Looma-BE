@@ -4,10 +4,9 @@ from datetime import date, timedelta
 
 from fastapi.testclient import TestClient
 
-from conftest import git
-from devdash.api.app import create_app
-from devdash.capture.install import connect_claude
-from devdash.capture.record import run_hook
+from conftest import connect_claude, git
+from looma.api.app import create_app
+from looma.capture.record import run_hook
 
 
 def client():
@@ -185,7 +184,7 @@ def pushed_from_the_cloud(repo, tmp_path, branch, files, message):
 
 
 def test_a_cloud_sessions_pushed_commit_shows_as_its_own_change(repo, tmp_path):
-    from devdash.capture.install import init
+    from looma.capture.install import init
     init(repo)  # not connected to Claude: no hooks at all
     sha = pushed_from_the_cloud(repo, tmp_path, "claude/tree", {"tree.py": "def grow():\n    return 1\n"},
                                 "Grow the tree" + CLAUDE)
@@ -203,7 +202,7 @@ def test_a_cloud_sessions_pushed_commit_shows_as_its_own_change(repo, tmp_path):
 
 
 def test_commits_without_a_claude_trailer_or_copies_are_not_counted(repo, tmp_path):
-    from devdash.capture.install import init
+    from looma.capture.install import init
     init(repo)
     pushed_from_the_cloud(repo, tmp_path, "mine", {"a.py": "x = 1\n"}, "My own work")
     pushed_from_the_cloud(repo, tmp_path, "claude", {"b.py": "y = 2\n"}, "Claude's work" + CLAUDE)
@@ -383,7 +382,7 @@ def test_a_prompts_change_opens_with_its_lines_and_each_function_explains(repo, 
     assert [u["kind"] for u in files["style.css"]["units"]] == ["file"]
 
     asked = []
-    monkeypatch.setattr("devdash.explain._run", lambda prompt: asked.append(prompt) or json.dumps(
+    monkeypatch.setattr("looma.explain._run", lambda prompt: asked.append(prompt) or json.dumps(
         {"summary": "Says hello loudly.", "change": "Now shouts.", "improves": [], "tradeoffs": [], "check": None}))
     answer = client().post("/api/digest/explain", json={"change": change_id, "path": "app.py", "name": "hello"}).json()
     assert answer["summary"] == "Says hello loudly."
@@ -423,8 +422,8 @@ def test_built_files_and_minified_lines_are_not_recorded(repo):
 
 
 def test_old_lines_are_cleared_but_the_prompt_and_counts_stay(repo):
-    from devdash import retention
-    from devdash.store import connect
+    from looma import retention
+    from looma.store import connect
 
     connect_claude(repo)
     claude_edits(repo, "old work", {"app.py": "a = 1\nb = 2\n"})
@@ -448,7 +447,7 @@ def test_old_lines_are_cleared_but_the_prompt_and_counts_stay(repo):
 
 
 def test_zero_days_keeps_lines_for_good(repo):
-    from devdash import retention
+    from looma import retention
 
     connect_claude(repo)
     claude_edits(repo, "old work", {"app.py": "a = 1\n"})
@@ -462,7 +461,7 @@ def test_an_app_chats_note_records_its_change_without_a_commit(repo):
     git(repo, "commit", "-q", "-m", "start")
     (repo / "app.py").write_text("v = 2\n")
     (repo / "new.py").write_text("x = 1\n")
-    inbox = repo / ".devdash" / "turns"
+    inbox = repo / ".looma" / "turns"
     inbox.mkdir(parents=True)
     (inbox / "20261031T183000Z.json").write_text(json.dumps({
         "prompt": "bump v and add x",
@@ -483,7 +482,7 @@ def test_an_app_chats_note_records_its_change_without_a_commit(repo):
 def test_an_app_chats_note_keeps_the_time_of_its_request(repo):
     connect_claude(repo)
     (repo / "app.py").write_text("v = 2\n")
-    inbox = repo / ".devdash" / "turns"
+    inbox = repo / ".looma" / "turns"
     inbox.mkdir(parents=True)
     (inbox / "a.json").write_text(json.dumps({"prompt": "yesterday's work", "at": "2020-01-01T10:00:00Z",
                                               "files": [{"path": "app.py", "before": "v = 1\n"}]}))
@@ -493,7 +492,7 @@ def test_an_app_chats_note_keeps_the_time_of_its_request(repo):
 
 
 def test_a_module_constant_below_a_function_is_not_that_functions_change():
-    from devdash import compare
+    from looma import compare
 
     hunks = compare.parse_patch(
         "diff --git a/m.py b/m.py\n--- a/m.py\n+++ b/m.py\n@@ -1,4 +1,4 @@\n"

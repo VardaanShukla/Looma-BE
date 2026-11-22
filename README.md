@@ -1,4 +1,4 @@
-<img src="src/devdash/web/looma.svg" width="72" alt="Looma logo">
+<img src="src/looma/web/looma.svg" width="72" alt="Looma logo">
 
 # Looma (backend)
 
@@ -12,9 +12,9 @@ serves the dashboard page. The page's source is in its own repo,
 [DevDash-FE](https://github.com/VardaanShukla/DevDash-FE); a built copy comes with this
 package, so you don't need Node to use Looma.
 
-Looma was called DevDash until November 2026. Only the name changed: the command is still
-`devdash` (`looma` works too once installed from this version), your data stays in `~/.devdash`,
-the `DEVDASH_*` settings and the `/api` addresses are the same, and the repos keep their names.
+Looma was called Looma until November 2026. Only the name changed: the command is still
+`looma` (`looma` works too once installed from this version), your data stays in `~/.looma`,
+the `LOOMA_*` settings and the `/api` addresses are the same, and the repos keep their names.
 
 ## What it does
 
@@ -52,7 +52,7 @@ the `DEVDASH_*` settings and the `/api` addresses are the same, and the repos ke
   folder's files; branches, changes, commits, pull requests and AI recording need git and stay
   off until you run `git init` in the folder.
 - **Private by design**: a username and password keep the dashboard to you, the server listens
-  on 127.0.0.1 only, and everything stays on your computer in SQLite under `~/.devdash`. The
+  on 127.0.0.1 only, and everything stays on your computer in SQLite under `~/.looma`. The
   only things sent anywhere are what you ask the AI you picked to explain.
 
 ## Install and run
@@ -62,34 +62,34 @@ Python apps in their own space). Node is not needed: the dashboard page comes bu
 
 ### The easy way: the installer script
 
-`scripts/devdash.sh` (Linux and macOS) and `scripts/devdash.bat` (Windows; it runs
-`devdash.ps1`) install, repair, uninstall or start Looma from one menu. Clone DevDash-FE
+`scripts/looma.sh` (Linux and macOS) and `scripts/looma.bat` (Windows; it runs
+`looma.ps1`) install, repair, uninstall or start Looma from one menu. Clone DevDash-FE
 next to this repo if you want the page built from its source; otherwise the page already
 built in here is used, and Node isn't needed:
 
 ```
 DevDash-BE/
   scripts/
-    devdash.sh     Linux and macOS
-    devdash.bat    Windows (double-click it)
-    devdash.ps1
+    looma.sh     Linux and macOS
+    looma.bat    Windows (double-click it)
+    looma.ps1
     build_ui.py    builds the page (the scripts run it for you)
 DevDash-FE/        optional, next to DevDash-BE
 ```
 
-Linux and macOS: double-click `scripts/devdash.sh` (it opens a terminal), or run
-`bash scripts/devdash.sh` in DevDash-BE. Windows: double-click `scripts\devdash.bat`. To
-build the page from a DevDash-FE somewhere else, set `DEVDASH_FE` to its folder first.
+Linux and macOS: double-click `scripts/looma.sh` (it opens a terminal), or run
+`bash scripts/looma.sh` in DevDash-BE. Windows: double-click `scripts\looma.bat`. To
+build the page from a DevDash-FE somewhere else, set `LOOMA_FE` to its folder first.
 
 | Option | What it does |
 |---|---|
-| **1 Install** | Checks for Python 3.10+, pipx and (when DevDash-FE is there) Node 18+, and asks before installing any that are missing (`sudo apt`/`dnf`/`pacman`/`zypper` or `brew` on Linux and macOS, `winget` on Windows; your password goes to those, never to the script). Builds the page, installs Looma with pipx, asks where your projects are and runs `devdash init` on that folder, then offers to start it. If Looma is already installed, it says to use Repair. |
-| **2 Repair** | The same, but reinstalls over whatever is there (`pipx install --force`), stopping a running Looma first. Your data in `~/.devdash` stays. Use it after pulling new code. |
-| **3 Uninstall** | After you type `DELETE`: takes Looma's hooks out of every project and AI tool (`devdash remove-hooks`), uninstalls Looma and **deletes `~/.devdash`** (your Looma account, project list and recorded history). Your projects' files and git history, Ollama and its models are not touched. Back up `~/.devdash` first if you may want it again (see "Uninstall Looma safely"). |
-| **4 Start** | Runs `devdash serve` and opens http://127.0.0.1:8765. Keep the window open while you use it; Ctrl+C stops it. |
+| **1 Install** | Checks for Python 3.10+, pipx and (when DevDash-FE is there) Node 18+, and asks before installing any that are missing (`sudo apt`/`dnf`/`pacman`/`zypper` or `brew` on Linux and macOS, `winget` on Windows; your password goes to those, never to the script). Builds the page, installs Looma with pipx, asks where your projects are and runs `looma init` on that folder, then offers to start it. If Looma is already installed, it says to use Repair. |
+| **2 Repair** | The same, but reinstalls over whatever is there (`pipx install --force`), stopping a running Looma first. Your data in `~/.looma` stays. Use it after pulling new code. |
+| **3 Uninstall** | After you type `DELETE`: takes Looma's hooks out of every project and AI tool (`looma remove-hooks`), uninstalls Looma and **deletes `~/.looma`** (your Looma account, project list and recorded history). Your projects' files and git history, Ollama and its models are not touched. Back up `~/.looma` first if you may want it again (see "Uninstall Looma safely"). |
+| **4 Start** | Runs `looma serve` and opens http://127.0.0.1:8765. Keep the window open while you use it; Ctrl+C stops it. |
 
 The install is a regular one, not editable: after changing the code, run Repair. Projects
-don't each need `devdash init`: the folder you give at install is searched for git repos,
+don't each need `looma init`: the folder you give at install is searched for git repos,
 and you pick the ones to track under Add project.
 
 The steps below do the same by hand.
@@ -123,7 +123,7 @@ The steps below do the same by hand.
 4. **Close every terminal and open a new one** (so it sees the new PATH), then start it:
 
    ```bat
-   devdash serve
+   looma serve
    ```
 
 5. Open http://127.0.0.1:8765 in your browser on the same computer.
@@ -142,7 +142,7 @@ The steps below do the same by hand.
    pipx install --force /path/to/DevDash-BE
    ```
 
-4. **Open a new terminal** and run `devdash serve`.
+4. **Open a new terminal** and run `looma serve`.
 5. Open http://127.0.0.1:8765.
 
 ### macOS
@@ -153,7 +153,7 @@ The steps below do the same by hand.
 2. **Install pipx:** `brew install pipx` (or `python3 -m pip install --user pipx`), then `pipx ensurepath`.
 3. **Install Looma:** `pipx install --force git+https://github.com/VardaanShukla/DevDash-BE.git`
    (or `pipx install --force /path/to/DevDash-BE` from a clone).
-4. **Open a new terminal** and run `devdash serve`.
+4. **Open a new terminal** and run `looma serve`.
 5. Open http://127.0.0.1:8765.
 
 ### First run
@@ -162,7 +162,7 @@ The first visit asks you to pick a username and password, then to add a project:
 any git folder on your computer, typed or pasted any way (`C:\Users\me\App`, `"C:\Users\me\App"`
 from Windows' "Copy as path", `~/App`, `$HOME/App` or `%USERPROFILE%\App`). A project with no
 readme, or nothing committed yet, works too. To pick from a list instead, point Looma at
-the folder that holds your projects once: `devdash init ~/Projects` remembers it, adds nothing
+the folder that holds your projects once: `looma init ~/Projects` remembers it, adds nothing
 and changes nothing in them, and Add project then lists the projects inside.
 
 Optional: install [Claude Code](https://claude.com/claude-code) (or Codex, Ollama or
@@ -171,25 +171,25 @@ adding a project to record each request it worked on (see below).
 
 ### Update to the latest version
 
-Run `scripts/devdash.sh` (Windows: `scripts\devdash.bat`) and choose **Repair**, or run the same install command again:
-`pipx install --force <GitHub URL or folder>` (Windows: `py -m pipx install --force …`). Then stop `devdash serve` (Ctrl+C) and start it
+Run `scripts/looma.sh` (Windows: `scripts\looma.bat`) and choose **Repair**, or run the same install command again:
+`pipx install --force <GitHub URL or folder>` (Windows: `py -m pipx install --force …`). Then stop `looma serve` (Ctrl+C) and start it
 again: it points the hooks at the new install by itself.
 
 ### If something goes wrong
 
-- **`devdash` isn't found.** Open a new terminal first. Still not found: run `pipx ensurepath`
+- **`looma` isn't found.** Open a new terminal first. Still not found: run `pipx ensurepath`
   (Windows: `py -m pipx ensurepath`) and open another one. Or run it by its full path:
-  `%USERPROFILE%\.local\bin\devdash.exe serve` in Command Prompt,
-  `& "$env:USERPROFILE\.local\bin\devdash.exe" serve` in PowerShell, or
-  `~/.local/bin/devdash serve` on Linux and macOS. `python -m devdash serve` also works from
+  `%USERPROFILE%\.local\bin\looma.exe serve` in Command Prompt,
+  `& "$env:USERPROFILE\.local\bin\looma.exe" serve` in PowerShell, or
+  `~/.local/bin/looma serve` on Linux and macOS. `python -m looma serve` also works from
   the environment it's installed in.
 - **You'd rather use a virtual environment** (venv or conda) than pipx: activate it, run
-  `pip install -e .` in the DevDash-BE folder, then `devdash serve`. The command then works
+  `pip install -e .` in the DevDash-BE folder, then `looma serve`. The command then works
   only while that environment is active, and the hooks Looma adds call that environment's
   Python.
 - **Hooks point at a deleted environment.** If you delete that environment (or move the
   install) without uninstalling Looma first, git commits still work, but Claude Code reports
-  a failing hook. Install Looma again and start `devdash serve` once: it points every hook at
+  a failing hook. Install Looma again and start `looma serve` once: it points every hook at
   the new install. Or remove them as in "Uninstall Looma safely".
 - **A prompt is missing from AI changes.** Settings → Recording shows when each hook last ran
   and any hook errors, with the log files' paths. Only tools that run Looma's hooks are
@@ -203,10 +203,10 @@ connected) and Looma finds it is the same project, as long as the old folder is 
 ### Working on the page
 
 The page's source is in its own repo, [DevDash-FE](https://github.com/VardaanShukla/DevDash-FE).
-To work on it with live reload, keep `devdash serve` running and start the UI's dev server
+To work on it with live reload, keep `looma serve` running and start the UI's dev server
 (`npm install` then `npm run dev` in DevDash-FE), which serves the page on
 http://localhost:5173 and forwards `/api` to the API. To ship a change, build it into this
-package and commit `src/devdash/web`:
+package and commit `src/looma/web`:
 
 ```sh
 python scripts/build_ui.py ../DevDash-FE
@@ -215,7 +215,7 @@ python scripts/build_ui.py ../DevDash-FE
 ## Track a repo
 
 ```sh
-devdash init ~/Projects/SomeRepo
+looma init ~/Projects/SomeRepo
 ```
 
 This only registers the repo. Nothing is installed: your own commits are already in git.
@@ -223,7 +223,7 @@ This only registers the repo. Nothing is installed: your own commits are already
 ## See what a branch changed
 
 ```sh
-devdash serve              # page and API on http://127.0.0.1:8765, API docs at /docs
+looma serve              # page and API on http://127.0.0.1:8765, API docs at /docs
 ```
 
 `GET /api/repos/{id}/compare` returns what the checked-out branch changed since it left
@@ -241,7 +241,7 @@ Other endpoints:
 
 - `GET /api/repos` (tracked repos) and `GET /api/repos/{id}/branches`
 - `POST /api/repos` with `{"path": "~/Projects/App", "ai": "claude" | null}` adds a project,
-  the same as `devdash init` (plus `devdash connect claude` when `ai` is `"claude"`)
+  the same as `looma init` (plus `looma connect claude` when `ai` is `"claude"`)
 - `DELETE /api/repos/{id}` (with a `{}` JSON body) stops tracking a project: its files and
   git history stay, Looma's git hook comes out, and what it recorded for it is deleted
 - `PUT /api/repos/{id}/ai` with `{"ai": "claude" | null}` connects or disconnects Claude
@@ -265,7 +265,7 @@ Other endpoints:
   what a function does, what the change improves and what it costs, or what the project is
   and how it works. Looma runs your installed `claude -p` in an empty folder with tools
   off, so it uses your Claude login and needs no API key. It asks Haiku, the small and
-  cheap model, with a short system prompt of its own; set `DEVDASH_CLAUDE_MODEL` (such as
+  cheap model, with a short system prompt of its own; set `LOOMA_CLAUDE_MODEL` (such as
   `sonnet`) for another. Answers are saved and reused. A 424 means Claude Code isn't signed in.
   `GET /api/ai` says whether `claude` is installed and signed in, and which model it uses
 - `POST /api/ai/sign-in` signs in to Claude Code from the page: it runs `claude auth login`,
@@ -323,7 +323,7 @@ five wrong tries in a minute pause signing in for that minute.
 - `PUT /api/auth/password` (`{"username", "password", "current"}`) sets the first username
   and password, or changes them from a signed-in browser; every other browser is signed out
 
-Forgot it? `devdash password` in a terminal sets a new password (and username, if you type
+Forgot it? `looma password` in a terminal sets a new password (and username, if you type
 one) without the old one.
 
 Function names come from git's own function detection, extended to JavaScript and
@@ -332,8 +332,8 @@ TypeScript. Methods inside a class in JS or TS are reported under the class.
 ## Optional: record your AI tool's changes
 
 ```sh
-devdash connect claude ~/Projects/SomeRepo      # start (or codex, or antigravity)
-devdash disconnect claude ~/Projects/SomeRepo   # stop; recorded history is kept
+looma connect claude ~/Projects/SomeRepo      # start (or codex, or antigravity)
+looma disconnect claude ~/Projects/SomeRepo   # stop; recorded history is kept
 ```
 
 A project records one tool at a time, and needs git. For Claude Code, `connect claude` installs:
@@ -353,11 +353,11 @@ nothing in one leaves no trace. Restart any Claude Code session that is already 
 Edits made from a Claude app chat reach your files without going through Claude Code,
 so the hooks can't see them. Looma records them from git instead:
 
-1. Run `devdash instructions` and paste its text into the Claude project's instructions.
-2. Claude then writes your request to `.devdash/prompt.md` before each commit and adds
+1. Run `looma instructions` and paste its text into the Claude project's instructions.
+2. Claude then writes your request to `.looma/prompt.md` before each commit and adds
    a `Co-Authored-By: Claude` line to the message.
 3. The post-commit hook stores that request with the commit's diff as an AI change and
-   clears the file. `.devdash/` is listed in `.git/info/exclude`, so it is never pushed.
+   clears the file. `.looma/` is listed in `.git/info/exclude`, so it is never pushed.
 
 A commit with an AI co-author line but no prompt file is still recorded as AI, without a
 prompt. Uncommitted app edits are not visible until they are committed.
@@ -365,13 +365,13 @@ prompt. Uncommitted app edits are not visible until they are committed.
 ## See what was recorded
 
 ```sh
-devdash turns            # latest prompts that changed files, and the commit they landed in
-devdash turns --all      # include prompts that changed nothing
+looma turns            # latest prompts that changed files, and the commit they landed in
+looma turns --all      # include prompts that changed nothing
 ```
 
-Data lives in `~/.devdash/devdash.db` (set `DEVDASH_HOME` to move it).
-Hook errors never interrupt Claude Code or git; they go to `~/.devdash/errors.log`.
-Every hook call is logged (tool and file, never the prompt) to `~/.devdash/hooks.log`.
+Data lives in `~/.looma/looma.db` (set `LOOMA_HOME` to move it).
+Hook errors never interrupt Claude Code or git; they go to `~/.looma/errors.log`.
+Every hook call is logged (tool and file, never the prompt) to `~/.looma/hooks.log`.
 
 ## How a change is recorded
 
@@ -394,22 +394,22 @@ Looma never changes your project files or their git history. What it adds, and t
 again when a project stops recording:
 
 - In each project that records an AI tool: two lines at the end of `.git/hooks/post-commit`
-  (a `# devdash: records commits` line and the command under it). Anything else in that
+  (a `# looma: records commits` line and the command under it). Anything else in that
   hook is yours and stays; the file is deleted only if Looma made it. Also a
-  `/.devdash/` line in `.git/info/exclude`, so a Claude app chat's notes there stay out of
+  `/.looma/` line in `.git/info/exclude`, so a Claude app chat's notes there stay out of
   git. That line is harmless and stays.
 - For the AI tool a project records, while any project records it:
   - Claude Code: five entries in `~/.claude/settings.json`, under `UserPromptSubmit`,
-    `PreToolUse`, `PostToolUse`, `Stop` and `SessionEnd`, each running `… -m devdash record …`. Your other settings and
+    `PreToolUse`, `PostToolUse`, `Stop` and `SessionEnd`, each running `… -m looma record …`. Your other settings and
     hooks stay.
   - Codex: `UserPromptSubmit`, `PreToolUse` and `Stop` in `~/.codex/hooks.json` (the file goes if only Looma's were in it).
-  - Antigravity: a `devdash` entry in `~/.gemini/config/hooks.json`.
-- Its own data in `~/.devdash` (`%USERPROFILE%\.devdash` on Windows): the projects list,
+  - Antigravity: a `looma` entry in `~/.gemini/config/hooks.json`.
+- Its own data in `~/.looma` (`%USERPROFILE%\.looma` on Windows): the projects list,
   what was recorded, settings and the dashboard password.
 
-Nothing starts Looma by itself: it runs only while `devdash serve` does.
+Nothing starts Looma by itself: it runs only while `looma serve` does.
 
-**The quick way:** run `scripts/devdash.sh` (Windows: `scripts\devdash.bat`) and choose **3 Uninstall**. It does steps 1 to 3 below and deletes `~/.devdash`
+**The quick way:** run `scripts/looma.sh` (Windows: `scripts\looma.bat`) and choose **3 Uninstall**. It does steps 1 to 3 below and deletes `~/.looma`
 without a backup, so make one first (step 4) if you may want the history again.
 
 By hand:
@@ -417,7 +417,7 @@ By hand:
 1. **Stop recording in every project.** One command does them all:
 
    ```sh
-   devdash remove-hooks
+   looma remove-hooks
    ```
 
    It takes Looma's lines out of every recording project's git hook and Looma's hooks out
@@ -425,47 +425,47 @@ By hand:
    "Remove project from Looma" (or "Stop recording AI changes"), or run:
 
    ```sh
-   devdash disconnect claude /path/to/project
+   looma disconnect claude /path/to/project
    ```
 
    This takes Looma's lines out of that project's git hook, and once no project records
    an AI tool any more, its hooks out of `~/.claude`, `~/.codex` or `~/.gemini`. Do this
-   first: after uninstalling, the `devdash` command isn't there to do it.
-2. **Stop Looma:** Ctrl+C in the terminal running `devdash serve`.
+   first: after uninstalling, the `looma` command isn't there to do it.
+2. **Stop Looma:** Ctrl+C in the terminal running `looma serve`.
 3. **Uninstall it:**
 
    ```sh
-   pipx uninstall devdash
+   pipx uninstall looma
    ```
 
    or, if you installed it into a virtual environment, activate it and run
-   `pip uninstall devdash`. On Windows: `py -m pipx uninstall devdash`.
+   `pip uninstall looma`. On Windows: `py -m pipx uninstall looma`.
 4. **Optional, and permanent: delete Looma's data.** Keep a copy first. Linux and macOS:
 
    ```sh
-   cd ~ && tar -czf devdash-backup.tar.gz .devdash
-   rm -rf ~/.devdash
+   cd ~ && tar -czf looma-backup.tar.gz .looma
+   rm -rf ~/.looma
    ```
 
    Windows (PowerShell):
 
    ```powershell
-   Compress-Archive -Path "$env:USERPROFILE\.devdash" -DestinationPath "$env:USERPROFILE\devdash-backup.zip"
-   Remove-Item -Recurse -Force "$env:USERPROFILE\.devdash"
+   Compress-Archive -Path "$env:USERPROFILE\.looma" -DestinationPath "$env:USERPROFILE\looma-backup.zip"
+   Remove-Item -Recurse -Force "$env:USERPROFILE\.looma"
    ```
 
    Windows (Command Prompt):
 
    ```bat
-   tar -czf "%USERPROFILE%\devdash-backup.tar.gz" -C "%USERPROFILE%" .devdash
-   rmdir /s /q "%USERPROFILE%\.devdash"
+   tar -czf "%USERPROFILE%\looma-backup.tar.gz" -C "%USERPROFILE%" .looma
+   rmdir /s /q "%USERPROFILE%\.looma"
    ```
 
 If you uninstalled before step 1, the hooks are left calling a Looma that isn't there. Git
 commits still work (the hook ends in `|| true`), but Claude Code reports a failing hook. Take
 them out by hand: delete Looma's two lines from each project's `.git/hooks/post-commit`,
 and in `~/.claude/settings.json` (and `~/.codex/hooks.json`) delete each hook whose command
-contains `devdash record`, leaving the others. Or install Looma again, do step 1, and
+contains `looma record`, leaving the others. Or install Looma again, do step 1, and
 uninstall.
 
 ## Settings from the environment
@@ -474,15 +474,15 @@ All optional.
 
 | Variable | What it does |
 |---|---|
-| `DEVDASH_HOME` | Where Looma keeps its data (default `~/.devdash`) |
-| `DEVDASH_CLAUDE_MODEL` | The Claude model for explanations when Settings doesn't pick one (default `haiku`) |
-| `DEVDASH_EXPLAIN_REVIEW` | `0` turns off the second pass that checks a function's pros and cons |
+| `LOOMA_HOME` | Where Looma keeps its data (default `~/.looma`) |
+| `LOOMA_CLAUDE_MODEL` | The Claude model for explanations when Settings doesn't pick one (default `haiku`) |
+| `LOOMA_EXPLAIN_REVIEW` | `0` turns off the second pass that checks a function's pros and cons |
 | `OLLAMA_HOST` | Where Ollama runs (default `127.0.0.1:11434`) |
-| `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `DEVDASH_ANTIGRAVITY_CONFIG` | Where Claude Code, Codex and Antigravity keep their settings, for their hooks |
-| `DEVDASH_GITHUB_CLIENT_ID`, `DEVDASH_GITHUB_APP` | A GitHub App to sign in with for pull requests (you can also paste a token in Settings) |
-| `DEVDASH_GITHUB_API`, `DEVDASH_GITHUB_URL` | Another GitHub address, such as GitHub Enterprise |
+| `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `LOOMA_ANTIGRAVITY_CONFIG` | Where Claude Code, Codex and Antigravity keep their settings, for their hooks |
+| `LOOMA_GITHUB_CLIENT_ID`, `LOOMA_GITHUB_APP` | A GitHub App to sign in with for pull requests (you can also paste a token in Settings) |
+| `LOOMA_GITHUB_API`, `LOOMA_GITHUB_URL` | Another GitHub address, such as GitHub Enterprise |
 | `AWS_CONFIG_FILE`, `AWS_SHARED_CREDENTIALS_FILE` | Where the AWS profiles for CodeCommit are |
-| `DEVDASH_FE` | For the installer scripts: a DevDash-FE folder somewhere other than next to this repo |
+| `LOOMA_FE` | For the installer scripts: a DevDash-FE folder somewhere other than next to this repo |
 
 ## Develop and test
 
@@ -491,24 +491,24 @@ python3 -m venv .venv
 . .venv/bin/activate            # Windows: .venv\Scripts\activate
 pip install -e '.[dev]'
 python -m pytest
-devdash serve                   # http://127.0.0.1:8765, API docs at /docs
+looma serve                   # http://127.0.0.1:8765, API docs at /docs
 ```
 
 A few tests in `tests/test_providers.py` look at the computer they run on (they expect no GPU and
 no Ollama service running) and fail on a machine that has them.
 
 To change the page, see "Working on the page" above; `python scripts/build_ui.py ../DevDash-FE`
-rebuilds `src/devdash/web`, which is committed so installs need no Node.
+rebuilds `src/looma/web`, which is committed so installs need no Node.
 
 ## How the code is laid out
 
-- `src/devdash/cli.py`: the `devdash` command (`init`, `connect`, `disconnect`, `serve`,
+- `src/looma/cli.py`: the `looma` command (`init`, `connect`, `disconnect`, `serve`,
   `turns`, `instructions`, `remove-hooks`, `password`, and `record`, which the hooks call).
-- `src/devdash/api/app.py`: the local web server and the shape of everything it sends.
-- `src/devdash/capture/`: recording AI tools' changes: the hooks (`install.py`), what each hook
+- `src/looma/api/app.py`: the local web server and the shape of everything it sends.
+- `src/looma/capture/`: recording AI tools' changes: the hooks (`install.py`), what each hook
   event records (`record.py`), commits made outside the hooks (`scan.py`) and the Claude app
   chats' prompt file (`inbox.py`).
-- `src/devdash/store/`: the SQLite database and its migrations.
+- `src/looma/store/`: the SQLite database and its migrations.
 - Reading git: `git.py`, `compare.py` (what a branch changed), `functions.py` (which functions
   changed), `flow.py` (branch flow), `home.py`.
 - Reading a project: `projectmap.py` (its parts and imports), `summary.py` (Summary and the KT's
@@ -518,7 +518,7 @@ rebuilds `src/devdash/web`, which is committed so installs need no Node.
 - `digest.py` and `undo.py`: AI changes by day, and undoing one. `github.py` and
   `codecommit.py`: pull requests. `auth.py`, `preferences.py`, `retention.py`, `paths.py`:
   sign-in, settings, cleaning up old data, where data lives.
-- `src/devdash/web/`: the built dashboard page. `scripts/`: the installers and `build_ui.py`.
+- `src/looma/web/`: the built dashboard page. `scripts/`: the installers and `build_ui.py`.
 
 ## License
 

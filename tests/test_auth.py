@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
-from devdash import auth, cli
-from devdash.api.app import create_app
-from devdash.store import connect
+from looma import auth, cli
+from looma.api.app import create_app
+from looma.store import connect
 
 
 def client():

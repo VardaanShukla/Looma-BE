@@ -1,16 +1,16 @@
 """Looma works wherever a project is and on any system: moved or re-cloned projects keep
-their history, pasted paths are understood, and the page comes with `devdash serve`."""
+their history, pasted paths are understood, and the page comes with `looma serve`."""
 
 import shutil
 
 from fastapi.testclient import TestClient
 
-from conftest import git
-from devdash.api import app as app_module
-from devdash.api.app import create_app
-from devdash.capture import install
-from devdash.capture.install import connect_claude, init
-from devdash.store import connect
+from conftest import connect_claude, git
+from looma.api import app as app_module
+from looma.api.app import create_app
+from looma.capture import install
+from looma.capture.install import init
+from looma.store import connect
 from test_capture import send
 
 
@@ -33,7 +33,7 @@ def test_a_moved_project_keeps_its_history_and_claude_setting(repo, tmp_path):
     [after] = repos()
     assert after["id"] == before["id"] and after["path"] == str(moved.resolve())
     assert after["name"] == "Renamed Folder" and after["claude"] == 1
-    assert "devdash record post-commit" in (moved / ".git" / "hooks" / "post-commit").read_text()
+    assert "looma record post-commit" in (moved / ".git" / "hooks" / "post-commit").read_text()
 
 
 def test_a_fresh_clone_takes_the_place_of_a_deleted_folder(repo, tmp_path):
@@ -100,7 +100,7 @@ def test_serving_refreshes_hooks_that_name_an_old_python(repo):
     connect_claude(repo)
     hook = repo / ".git" / "hooks" / "post-commit"
     hook.write_text(hook.read_text().replace(install.record_command("post-commit"),
-                                             "/old/python -I -m devdash record post-commit"))
+                                             "/old/python -I -m looma record post-commit"))
     conn = connect()
     with conn:
         conn.execute("UPDATE repos SET root_commit = NULL")

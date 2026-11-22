@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
 
 from conftest import git
-from devdash import ktdoc
-from devdash.api.app import create_app
-from devdash.capture.install import init
+from looma import ktdoc
+from looma.api.app import create_app
+from looma.capture.install import init
 
 
 def client():

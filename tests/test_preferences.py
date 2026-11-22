@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from devdash.api.app import create_app
+from looma.api.app import create_app
 
 
 def client():
@@ -36,7 +36,7 @@ def test_bad_settings_and_clashing_keys_are_refused():
 def test_number_keys_follow_the_menu_and_old_saved_defaults_move_with_them():
     import json
 
-    from devdash.store import connect
+    from looma.store import connect
 
     # Saved by the first version: every key stored, numbers in the old menu order, plus one
     # key the person picked.
@@ -89,7 +89,7 @@ def test_shortcuts_go_back_to_the_defaults():
 
 
 def test_a_home_layout_from_before_widgets_could_be_placed_goes_back_to_the_default():
-    from devdash import preferences
+    from looma import preferences
 
     old = {"order": ["pulse", "ai", "branch", "flow"], "hidden": ["calendar"]}
     assert preferences._layout(old) == preferences._default_layout()
@@ -104,7 +104,7 @@ def test_a_home_layout_from_before_widgets_could_be_placed_goes_back_to_the_defa
 def test_keys_saved_before_ask_joined_the_menu_move_down_one():
     import json
 
-    from devdash.store import connect
+    from looma.store import connect
 
     saved = {"view:changes": "4", "view:commits": "5", "view:project": "6", "sync": "r"}
     conn = connect()
@@ -120,7 +120,7 @@ def test_keys_saved_before_ask_joined_the_menu_move_down_one():
 def test_kt_has_a_key_and_keys_saved_before_it_move_down_one():
     import json
 
-    from devdash.store import connect
+    from looma.store import connect
 
     saved = {"view:ask": "4", "view:changes": "5", "view:project": "7", "theme": "x"}
     conn = connect()
@@ -138,7 +138,7 @@ def test_kt_has_a_key_and_keys_saved_before_it_move_down_one():
 
 def test_keep_diffs_days_defaults_to_ten_and_checks_its_value():
     from fastapi.testclient import TestClient
-    from devdash.api.app import create_app
+    from looma.api.app import create_app
 
     api = TestClient(create_app(), base_url="http://127.0.0.1")
     assert api.get("/api/preferences").json()["keep_diffs_days"] == 10
