@@ -6,11 +6,11 @@ import json
 from conftest import git
 from fastapi.testclient import TestClient
 
-from devdash.api.app import create_app
-from devdash.capture.install import (antigravity_hooks_path, claude_settings_path, codex_hooks_path,
+from looma.api.app import create_app
+from looma.capture.install import (antigravity_hooks_path, claude_settings_path, codex_hooks_path,
                                      connect_tool, record_command, remove_all_hooks)
-from devdash.capture.record import run_hook
-from devdash.store import connect
+from looma.capture.record import run_hook
+from looma.store import connect
 
 
 def codex(event, repo, **payload):
@@ -42,8 +42,8 @@ def test_picking_codex_then_antigravity_moves_the_hooks(repo):
     assert api.put(f"/api/repos/{repo_id}/ai", json={"ai": "antigravity"}).json()["ai"] == "antigravity"
     assert not codex_hooks_path().exists()  # no project records Codex now
     config = json.loads(antigravity_hooks_path().read_text())
-    assert sorted(config["devdash"]) == ["PreInvocation", "Stop"]
-    assert config["devdash"]["Stop"][0]["command"].endswith("record stop --tool antigravity || echo {}")
+    assert sorted(config["looma"]) == ["PreInvocation", "Stop"]
+    assert config["looma"]["Stop"][0]["command"].endswith("record stop --tool antigravity || echo {}")
     steps = {s["id"]: s for s in api.get(f"/api/repos/{repo_id}/setup").json()["steps"]}
     assert steps["antigravity-hooks"]["done"] is True
 
@@ -60,10 +60,10 @@ def test_other_hooks_in_the_tools_files_are_kept(repo):
     connect_tool(repo, "antigravity")
     assert json.loads(codex_hooks_path().read_text()) == {
         "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "ding"}]}]}}
-    assert set(json.loads(antigravity_hooks_path().read_text())) == {"lint", "devdash"}
+    assert set(json.loads(antigravity_hooks_path().read_text())) == {"lint", "looma"}
 
 
-def test_codex_request_and_patch_are_recorded(repo, devdash_home):
+def test_codex_request_and_patch_are_recorded(repo, looma_home):
     connect_tool(repo, "codex")
     (repo / "notes.md").write_text("mine\n")
     codex("user-prompt-submit", repo, turn_id="t1", prompt="make hello louder")
@@ -80,10 +80,10 @@ def test_codex_request_and_patch_are_recorded(repo, devdash_home):
     assert (turn["prompt"], turn["tool"]) == ("make hello louder", "codex") and turn["ended_at"]
     changes = conn.execute("SELECT file_path, via FROM changes WHERE turn_id IS NOT NULL ORDER BY file_path").fetchall()
     assert [(c["file_path"], c["via"]) for c in changes] == [("app.py", "edit"), ("shout.py", "edit")]
-    assert not (devdash_home / "errors.log").exists()
+    assert not (looma_home / "errors.log").exists()
 
 
-def test_antigravity_request_is_recorded_from_its_transcript(repo, tmp_path, devdash_home):
+def test_antigravity_request_is_recorded_from_its_transcript(repo, tmp_path, looma_home):
     connect_tool(repo, "antigravity")
     transcript = tmp_path / "transcript.jsonl"
     transcript.write_text("\n".join(json.dumps(line) for line in [
@@ -104,7 +104,7 @@ def test_antigravity_request_is_recorded_from_its_transcript(repo, tmp_path, dev
     assert [(t["prompt"], t["tool"]) for t in turns] == [("make hello louder", "antigravity")] and turns[0]["ended_at"]
     changes = conn.execute("SELECT file_path, diff FROM changes WHERE turn_id IS NOT NULL").fetchall()
     assert [c["file_path"] for c in changes] == ["app.py"] and "+    return 'HI'" in changes[0]["diff"]
-    assert not (devdash_home / "errors.log").exists()
+    assert not (looma_home / "errors.log").exists()
 
 
 def test_antigravity_always_gets_its_json_answer(tmp_path):
@@ -118,7 +118,7 @@ def test_hooks_name_their_tool():
     assert record_command("stop").endswith("record stop")
 
 
-def test_remove_all_hooks_takes_devdash_out_of_every_project_and_tool(repo, tmp_path):
+def test_remove_all_hooks_takes_looma_out_of_every_project_and_tool(repo, tmp_path):
     other = tmp_path / "other"
     other.mkdir()
     git(other, "init", "-q")

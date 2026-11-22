@@ -5,8 +5,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import git
-from devdash import codecommit
-from devdash.api.app import create_app
+from looma import codecommit
+from looma.api.app import create_app
 
 
 def client():
@@ -36,17 +36,17 @@ print(json.dumps(answers.get(key, {})))
 
 ANSWERS = {
     "sts get-caller-identity": {"Account": "123456789012", "Arn": "arn:aws:iam::123456789012:user/vardaan"},
-    "codecommit list-repositories": {"repositories": [{"repositoryName": "devdash"}, {"repositoryName": "old"}]},
+    "codecommit list-repositories": {"repositories": [{"repositoryName": "looma"}, {"repositoryName": "old"}]},
     "codecommit batch-get-repositories": {"repositories": [
         {"repositoryName": "old", "lastModifiedDate": 1700000000.0},
-        {"repositoryName": "devdash", "repositoryDescription": "It", "defaultBranch": "main",
-         "cloneUrlHttp": "https://git-codecommit.ap-south-1.amazonaws.com/v1/repos/devdash",
+        {"repositoryName": "looma", "repositoryDescription": "It", "defaultBranch": "main",
+         "cloneUrlHttp": "https://git-codecommit.ap-south-1.amazonaws.com/v1/repos/looma",
          "lastModifiedDate": "2026-10-27T10:00:00+00:00"}]},
     "codecommit list-pull-requests": {"pullRequestIds": ["7"]},
     "codecommit get-pull-request 7": {"pullRequest": {
         "pullRequestId": "7", "title": "Add Ask", "authorArn": "arn:aws:iam::123456789012:user/vardaan",
         "lastActivityDate": "2026-10-28T09:00:00+00:00",
-        "pullRequestTargets": [{"repositoryName": "devdash", "sourceReference": "refs/heads/ask",
+        "pullRequestTargets": [{"repositoryName": "looma", "sourceReference": "refs/heads/ask",
                                 "destinationReference": "refs/heads/main"}]}},
 }
 
@@ -89,17 +89,17 @@ def test_connecting_a_profile_then_listing_repos_and_pull_requests(aws, repo):
     assert all(call[call.index("--profile") + 1] == "work" for call in aws())
 
     # A project cloned from one of them is marked as such; newest change first, whichever CLI's time format.
-    git(repo, "remote", "add", "origin", "https://git-codecommit.ap-south-1.amazonaws.com/v1/repos/devdash")
+    git(repo, "remote", "add", "origin", "https://git-codecommit.ap-south-1.amazonaws.com/v1/repos/looma")
     api.post("/api/repos", json={"path": str(repo)})
     listed = api.get("/api/codecommit/repos").json()
-    assert [r["name"] for r in listed] == ["devdash", "old"]
+    assert [r["name"] for r in listed] == ["looma", "old"]
     assert listed[0]["tracked"] == str(repo) and listed[1]["tracked"] is None
     assert listed[1]["updated_at"].startswith("2023-11-14")
     assert "ap-south-1.console.aws.amazon.com" in listed[0]["url"]
 
     [project] = api.get("/api/repos").json()
     pulls = api.get(f"/api/repos/{project['id']}/pulls").json()
-    assert (pulls["repo"], pulls["host"], pulls["connected"]) == ("devdash", "codecommit", True)
+    assert (pulls["repo"], pulls["host"], pulls["connected"]) == ("looma", "codecommit", True)
     [pull] = pulls["pulls"]
     assert (pull["number"], pull["title"], pull["author"], pull["branch"], pull["base"]) == (7, "Add Ask", "vardaan", "ask", "main")
     assert "/pull-requests/7/" in pull["url"]
@@ -113,7 +113,7 @@ def test_connecting_a_profile_then_listing_repos_and_pull_requests(aws, repo):
 def test_a_repository_in_another_region_says_so(aws, repo):
     api = client()
     api.post("/api/codecommit/connect", json={"profile": "work", "region": "ap-south-1"})
-    git(repo, "remote", "add", "origin", "codecommit::eu-west-1://work@devdash")
+    git(repo, "remote", "add", "origin", "codecommit::eu-west-1://work@looma")
     api.post("/api/repos", json={"path": str(repo)})
     [project] = api.get("/api/repos").json()
     pulls = api.get(f"/api/repos/{project['id']}/pulls").json()
@@ -177,9 +177,9 @@ def test_codecommit_remotes_are_read_in_every_spelling():
 
 
 def test_a_github_project_still_shows_github(aws, repo):
-    git(repo, "remote", "add", "origin", "git@github.com:vardaan/devdash.git")
+    git(repo, "remote", "add", "origin", "git@github.com:vardaan/looma.git")
     api = client()
     api.post("/api/repos", json={"path": str(repo)})
     [project] = api.get("/api/repos").json()
     pulls = api.get(f"/api/repos/{project['id']}/pulls").json()
-    assert (pulls["repo"], pulls["host"], pulls["connected"]) == ("vardaan/devdash", "github", False)
+    assert (pulls["repo"], pulls["host"], pulls["connected"]) == ("vardaan/looma", "github", False)

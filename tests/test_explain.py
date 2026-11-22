@@ -4,11 +4,11 @@ import os
 from fastapi.testclient import TestClient
 
 from conftest import git
-from devdash.api.app import create_app
-from devdash.capture.install import init
-from devdash import explain as explain_module
-from devdash import summary as summary_module
-from devdash.functions import units
+from looma.api.app import create_app
+from looma.capture.install import init
+from looma import explain as explain_module
+from looma import summary as summary_module
+from looma.functions import units
 
 
 def client():
@@ -127,7 +127,7 @@ def fake_claude(tmp_path, monkeypatch, answer: dict, is_error=False, error=None)
         "  echo 'If the browser didn'\\''t open, visit: https://claude.example/sign-in?x=1'\n"
         f"  read code; echo \"code $code\" >> {calls}; exit 0\n"
         "fi\n"
-        f"cat > /dev/null\necho \"$DEVDASH_INTERNAL $*\" >> {calls}\n"
+        f"cat > /dev/null\necho \"$LOOMA_INTERNAL $*\" >> {calls}\n"
         f"cat <<'EOF'\n{reply}\nEOF\n"
     )
     script.chmod(0o755)
@@ -203,7 +203,7 @@ def test_signing_in_from_the_dashboard(repo, tmp_path, monkeypatch):
 
 
 def test_without_claude_the_status_gives_the_official_installers(tmp_path, monkeypatch):
-    from devdash import explain
+    from looma import explain
 
     monkeypatch.setenv("PATH", str(tmp_path / "empty"))
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -258,16 +258,16 @@ def test_a_project_with_no_readme_or_commit_still_gets_a_summary_and_a_descripti
     made = client().post(f"/api/repos/{listed['id']}/explain/project", json={}).json()
     assert made["overview"] == "A ledger. It adds up cash."
     # With no readme to go on, the AI is shown how the code starts.
-    from devdash import summary as summary_module
+    from looma import summary as summary_module
     samples = summary_module.summary(project, "HEAD")["samples"]
     assert samples[0]["file"] == "main.py" and "print(balance([1, 2]))" in samples[0]["start"]
 
 
 def test_an_empty_description_kept_by_an_older_version_is_asked_again(repo):
-    from devdash import explain
+    from looma import explain
 
     subject = {"name": "x"}
-    conn = __import__("devdash.store", fromlist=["connect"]).connect()
+    conn = __import__("looma.store", fromlist=["connect"]).connect()
     with conn:
         conn.execute("INSERT INTO explanations (key, kind, result, created_at) VALUES (?, 'project', ?, 'now')",
                      (explain.key("project", subject), json.dumps({"overview": "", "how_it_works": [], "parts": [], "state": ""})))
@@ -276,7 +276,7 @@ def test_an_empty_description_kept_by_an_older_version_is_asked_again(repo):
 
 
 def test_secrets_are_blanked_out_before_anything_reaches_an_ai():
-    from devdash.explain import REDACTED, redact
+    from looma.explain import REDACTED, redact
 
     fake = {
         "aws": "key = AKIAIOSFODNN7EXAMPLE",
@@ -331,16 +331,16 @@ def test_claude_runs_with_no_tools_and_an_old_one_is_asked_to_update(repo, tmp_p
     assert answer.status_code == 502 and "Update Claude Code" in answer.json()["detail"]
 
 
-def test_devdash_data_is_private_to_its_user(tmp_path, monkeypatch):
-    from devdash import paths
+def test_looma_data_is_private_to_its_user(tmp_path, monkeypatch):
+    from looma import paths
 
     home = tmp_path / "private-home"
     home.mkdir(mode=0o755)
-    (home / "devdash.db.before-x").write_text("old copy")
-    monkeypatch.setenv("DEVDASH_HOME", str(home))
+    (home / "looma.db.before-x").write_text("old copy")
+    monkeypatch.setenv("LOOMA_HOME", str(home))
     paths.home()
     assert oct(home.stat().st_mode & 0o777) == "0o700"
-    assert oct((home / "devdash.db.before-x").stat().st_mode & 0o777) == "0o600"
+    assert oct((home / "looma.db.before-x").stat().st_mode & 0o777) == "0o600"
 
 
 def test_every_kind_of_changed_file_has_something_to_explain(repo):
@@ -404,7 +404,7 @@ def test_a_whole_file_is_explained_from_its_diff(repo, tmp_path, monkeypatch):
 
 
 def test_prompts_fit_small_models_without_losing_the_instructions(monkeypatch):
-    from devdash import explain
+    from looma import explain
 
     long = "x" * 50_000 + "\nReply with only a JSON object"
     fitted = explain._fit(long, 12_000)
@@ -496,9 +496,11 @@ def test_asking_about_the_project_reads_the_notes_and_the_files_it_names(repo, t
     assert asked.json() == {"answer": "`charge` takes the payment.", "files": ["billing.py"], "read": ["billing.py"],
                             "follow_ups": [], "explained": 1, "total": 2}
     prompt = prompts.read_text()
-    # The note on each file, the named file's code, the conversation, and never writing code.
+    # The note on each file, the named file's code, the conversation, commands in fenced blocks,
+    # and the guide to Looma itself.
     assert "- billing.py: Takes payments." in prompt and "return card.pay(amount)" in prompt
-    assert "Them: Hi" in prompt and "You never write, fix or change code" in prompt
+    assert "Them: Hi" in prompt and "fenced block" in prompt
+    assert "How to use Looma" in prompt and "`looma serve`" in prompt
     # Nothing is saved: asking again asks again.
     client().post(f"/api/repos/{listed['id']}/ask", json={"question": "What does charge do?"})
     assert prompt.count("Their question") == 1 and prompts.read_text().count("Their question") == 2
@@ -511,8 +513,31 @@ def test_asking_about_the_project_reads_the_notes_and_the_files_it_names(repo, t
     assert client().post(f"/api/repos/{listed['id']}/ask", json={"question": "  "}).status_code == 400
 
 
+def test_ask_knows_the_projects_commands_and_looma_and_a_small_model_gets_the_guide_only_when_asked(monkeypatch):
+    from looma import explain
+
+    context = {"project": {"name": "Shop", "run": ["test: pytest -q (pyproject.toml)"], "entry_points": ["shop/main.py"],
+                           "readme": {"title": "Shop", "intro": "Sells things.", "first_sentence": "Sells things.",
+                                      "sections": ["Install", "Testing"]}}}
+    big = explain._ask_prompt("How do I run the tests?", [], context, explain.MAX_PROMPT_CHARS)
+    assert "test: pytest -q (pyproject.toml)" in big and "shop/main.py" in big
+    assert "Sells things." in big and "Install, Testing" in big
+    assert "How to use Looma" in big  # a large model always has it
+    small = explain._ask_prompt("How do I run the tests?", [], context, explain.SMALL_PROMPT_CHARS)
+    assert "How to use Looma" not in small and "pytest -q" in small
+    asked = explain._ask_prompt("Where do I turn on uncommitted work?", [], context, explain.SMALL_PROMPT_CHARS)
+    assert "How to use Looma" in asked and "Show uncommitted" in asked
+    assert explain.about_looma("how do I write the KT") and not explain.about_looma("what does charge() return")
+    # The readme and setup files, word for word: where the real commands are.
+    context["setup"] = {"readme": "## Testing\n\n    pip install -e .[dev]\n    pytest -q\n",
+                        "files": [{"path": "pyproject.toml", "text": "[project]\nname = \"shop\""}], "scripts": ["scripts/run.sh"]}
+    assert "pip install -e .[dev]" in explain._ask_prompt("How do I run the tests?", [], context, explain.SMALL_PROMPT_CHARS)
+    assert "pip install -e .[dev]" not in explain._ask_prompt("What does charge do?", [], context, explain.SMALL_PROMPT_CHARS)
+    assert "scripts/run.sh" in explain._ask_prompt("What does charge do?", [], context, explain.MAX_PROMPT_CHARS)
+
+
 def test_a_plain_words_answer_is_kept_and_files_are_picked_by_name(monkeypatch):
-    from devdash import explain
+    from looma import explain
 
     files = [{"path": "src/api/client.ts", "explanation": None},
              {"path": "src/App.tsx", "explanation": {"purpose": "The page.", "functions": [{"name": "App.render", "what": ""}]}},
@@ -623,7 +648,7 @@ def test_a_failed_review_keeps_the_first_answer(monkeypatch):
 
 
 def test_a_changed_function_brings_the_code_of_what_it_newly_calls():
-    from devdash import functions
+    from looma import functions
     old = "def check(p):\n    return p\n\ndef log(p):\n    print(p)\n\ndef save(p):\n    log(p)\n"
     new = "def check(p):\n    return p\n\ndef log(p):\n    print(p)\n\ndef save(p):\n    log(p)\n    check(p)\n"
     before = {u["name"]: u for u in units("a.py", old)}

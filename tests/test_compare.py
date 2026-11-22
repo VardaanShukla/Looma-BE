@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import git
-from devdash.compare import CompareError, branch_details, compare, default_base, parse_patch, retire
+from looma.compare import CompareError, branch_details, compare, default_base, parse_patch, retire
 
 
 def by_path(result):
@@ -135,7 +135,7 @@ def test_parse_patch_line_numbers():
 
 
 def test_state_changes_with_branches_commits_checkouts_and_edits(repo):
-    from devdash.compare import state
+    from looma.compare import state
 
     seen = {state(repo)}
     git(repo, "branch", "feature")

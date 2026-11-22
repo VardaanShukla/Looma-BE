@@ -3,11 +3,11 @@ import json
 import sqlite3
 import subprocess
 
-from conftest import git
-from devdash.capture.install import claude_settings_path, connect_claude, disconnect_claude, init, record_command
-from devdash.capture.record import run_hook
-from devdash.store import connect
-from devdash.store.db import MIGRATIONS
+from conftest import connect_claude, git
+from looma.capture.install import claude_settings_path, disconnect, init, record_command
+from looma.capture.record import run_hook
+from looma.store import connect
+from looma.store.db import MIGRATIONS
 
 
 def send(event, repo, **payload):
@@ -36,7 +36,7 @@ def test_init_installs_hooks_once(repo, tmp_path):
     }
     assert hooks["PreToolUse"][0]["matcher"] == "Edit|MultiEdit|Write|NotebookEdit"
     hook = (repo / ".git" / "hooks" / "post-commit").read_text()
-    assert hook.count("devdash record post-commit") == 1
+    assert hook.count("looma record post-commit") == 1
     assert connect().execute("SELECT COUNT(*) FROM repos").fetchone()[0] == 2
     assert git(repo, "status", "--porcelain") == ""  # nothing added to the repo
 
@@ -102,9 +102,9 @@ def test_session_outside_tracked_repos_leaves_no_trace(repo, tmp_path):
     assert conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
 
 
-def test_upgrades_a_version_1_database(devdash_home, repo):
-    devdash_home.mkdir()
-    old = sqlite3.connect(devdash_home / "devdash.db")
+def test_upgrades_a_version_1_database(looma_home, repo):
+    looma_home.mkdir()
+    old = sqlite3.connect(looma_home / "looma.db")
     old.executescript(MIGRATIONS[0] + """
         PRAGMA user_version=1;
         INSERT INTO repos VALUES (1, '/r', 'r', 't');
@@ -195,7 +195,7 @@ def test_ignores_internal_runs_unregistered_repos_and_lockfiles(repo, monkeypatc
     git(other, "init", "-q")
     send("user-prompt-submit", other, prompt="not tracked", session_id="s2")
     send("stop", other, session_id="s2")
-    monkeypatch.setenv("DEVDASH_INTERNAL", "1")
+    monkeypatch.setenv("LOOMA_INTERNAL", "1")
     send("user-prompt-submit", repo, prompt="summary run", session_id="s3")
 
     conn = connect()
@@ -203,10 +203,10 @@ def test_ignores_internal_runs_unregistered_repos_and_lockfiles(repo, monkeypatc
     assert conn.execute("SELECT COUNT(*) FROM turn_files").fetchone()[0] == 0
 
 
-def test_bad_payload_never_fails_the_hook(repo, devdash_home):
+def test_bad_payload_never_fails_the_hook(repo, looma_home):
     connect_claude(repo)
     assert run_hook("stop", io.StringIO("not json")) == 0
-    assert "JSONDecodeError" in (devdash_home / "errors.log").read_text()
+    assert "JSONDecodeError" in (looma_home / "errors.log").read_text()
 
 
 def test_installed_command_runs_end_to_end(repo):
@@ -219,7 +219,7 @@ def test_installed_command_runs_end_to_end(repo):
     assert connect().execute("SELECT prompt FROM turns").fetchone()["prompt"] == "via the real command"
 
 
-def test_commit_with_ai_coauthor_counts_as_ai(repo, devdash_home):
+def test_commit_with_ai_coauthor_counts_as_ai(repo, looma_home):
     connect_claude(repo)
     (repo / "app.py").write_text("def hello():\n    return 'hey'\n")
     git(repo, "commit", "-q", "-am", "Tweak hello\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>")
@@ -232,23 +232,23 @@ def test_commit_with_ai_coauthor_counts_as_ai(repo, devdash_home):
     assert [(r["message"].splitlines()[0], r["source"], r["turn_id"]) for r in rows] == [
         ("Tweak hello", "ai", None), ("My own tweak", "human", None),
     ]
-    assert "post-commit" in (devdash_home / "hooks.log").read_text()
+    assert "post-commit" in (looma_home / "hooks.log").read_text()
 
 
-def test_hook_log_names_the_tool_without_the_prompt(repo, devdash_home):
+def test_hook_log_names_the_tool_without_the_prompt(repo, looma_home):
     connect_claude(repo)
     send("user-prompt-submit", repo, prompt="secret plan")
     send("pre-tool-use", repo, tool_name="Bash", tool_input={"command": "echo hi > a.txt"})
-    log = (devdash_home / "hooks.log").read_text()
+    log = (looma_home / "hooks.log").read_text()
     assert "tool=Bash" in log
     assert "secret plan" not in log
 
 
 def test_prompt_file_becomes_the_commits_turn(repo):
     connect_claude(repo)
-    assert "/.devdash/" in (repo / ".git" / "info" / "exclude").read_text()
-    (repo / ".devdash").mkdir()
-    (repo / ".devdash" / "prompt.md").write_text("make hello shout\n---\nand add a docstring\n")
+    assert "/.looma/" in (repo / ".git" / "info" / "exclude").read_text()
+    (repo / ".looma").mkdir()
+    (repo / ".looma" / "prompt.md").write_text("make hello shout\n---\nand add a docstring\n")
     (repo / "app.py").write_text('def hello():\n    """Greets."""\n    return "HI"\n')
     git(repo, "add", "-A")
     assert "prompt.md" not in git(repo, "status", "--porcelain")  # never committed
@@ -260,7 +260,7 @@ def test_prompt_file_becomes_the_commits_turn(repo):
     change = conn.execute("SELECT file_path, source, turn_id FROM changes").fetchone()
     assert (change["file_path"], change["source"]) == ("app.py", "ai")
     assert change["turn_id"] is not None
-    assert not (repo / ".devdash" / "prompt.md").exists()
+    assert not (repo / ".looma" / "prompt.md").exists()
 
     (repo / "app.py").write_text("x = 1\n")
     git(repo, "commit", "-q", "-am", "next")  # no prompt file this time
@@ -293,10 +293,10 @@ def test_disconnect_removes_hooks_but_keeps_history(repo, tmp_path):
     (repo / "app.py").write_text("changed\n")
     send("stop", repo)
 
-    disconnect_claude(repo)
+    disconnect(repo)
     assert hook.read_text() == "#!/bin/sh\necho mine\n"
     assert "hooks" in json.loads(claude_settings_path().read_text())  # other repo still connected
-    disconnect_claude(other)
+    disconnect(other)
     assert "hooks" not in json.loads(claude_settings_path().read_text())
     assert not (other / ".git" / "hooks" / "post-commit").exists()
     assert connect().execute("SELECT prompt FROM turns").fetchone()["prompt"] == "keep me"
@@ -308,10 +308,10 @@ def test_a_prompt_still_records_when_its_session_was_deleted_meanwhile(repo):
     import io
     import json
 
-    from devdash.capture.install import connect_claude, remove
-    from devdash.capture.record import run_hook
-    from devdash.paths import error_log
-    from devdash.store import connect
+    from looma.capture.install import remove
+    from looma.capture.record import run_hook
+    from looma.paths import error_log
+    from looma.store import connect
 
     other = repo.parent / "other"
     other.mkdir()
@@ -379,7 +379,7 @@ def test_a_commit_made_during_the_prompt_is_counted_once(repo):
 
 
 def test_large_files_and_files_from_another_project_are_left_out(repo, tmp_path):
-    from devdash.capture.record import MAX_FILE_BYTES
+    from looma.capture.record import MAX_FILE_BYTES
 
     other = tmp_path / "other"
     other.mkdir()
@@ -396,7 +396,7 @@ def test_large_files_and_files_from_another_project_are_left_out(repo, tmp_path)
 
 
 def test_a_session_started_elsewhere_is_attributed_by_the_files_it_edits(repo, tmp_path):
-    from devdash.capture import record
+    from looma.capture import record
 
     connect_claude(repo)
     elsewhere = tmp_path / "somewhere-else"
@@ -413,32 +413,32 @@ def test_a_session_started_elsewhere_is_attributed_by_the_files_it_edits(repo, t
     assert record.health()["errors"] == 0
 
 
-def test_hook_failures_are_counted_with_their_reason(repo, devdash_home):
-    from devdash.capture import record
+def test_hook_failures_are_counted_with_their_reason(repo, looma_home):
+    from looma.capture import record
 
     connect_claude(repo)
     assert run_hook("user-prompt-submit", io.StringIO("{not json")) == 0
     health = record.health()
     assert health["errors"] == 1 and "JSONDecodeError" in health["last_error"]["detail"]
-    assert "ERROR JSONDecodeError" in (devdash_home / "hooks.log").read_text()
+    assert "ERROR JSONDecodeError" in (looma_home / "hooks.log").read_text()
     send("user-prompt-submit", repo, prompt="hi")
     assert "user-prompt-submit" in record.health()["last_call"]
 
 
 def test_hook_commands_quote_a_windows_path_with_a_space_for_sh_and_cmd(monkeypatch):
-    from devdash.capture import install
+    from looma.capture import install
 
     monkeypatch.setattr(install.os, "name", "nt")
-    assert install._quote("C:/Users/Jo Smith/.local/pipx/venvs/devdash/Scripts/python.exe") == \
-        '"C:/Users/Jo Smith/.local/pipx/venvs/devdash/Scripts/python.exe"'
+    assert install._quote("C:/Users/Jo Smith/.local/pipx/venvs/looma/Scripts/python.exe") == \
+        '"C:/Users/Jo Smith/.local/pipx/venvs/looma/Scripts/python.exe"'
     assert install._quote("C:/Users/jo/python.exe") == "C:/Users/jo/python.exe"
 
 
 def test_a_folder_of_projects_is_remembered_and_offered_without_adding_any(tmp_path, capsys):
     from fastapi.testclient import TestClient
 
-    from devdash import cli
-    from devdash.api.app import create_app
+    from looma import cli
+    from looma.api.app import create_app
 
     work = tmp_path / "work"
     for name in ("alpha", "beta", "node_modules/dep"):
@@ -462,14 +462,14 @@ def test_a_folder_of_projects_is_remembered_and_offered_without_adding_any(tmp_p
 def test_health_names_hooks_that_cannot_record_and_repair_fixes_them(repo):
     from fastapi.testclient import TestClient
 
-    from devdash.api.app import create_app
-    from devdash.capture import record
+    from looma.api.app import create_app
+    from looma.capture import record
 
     connect_claude(repo)
     assert record.health()["problems"] == []
     # A reinstall moved Python: the hooks still name the old one, which fails before Looma runs.
     settings = user_settings()
-    settings["hooks"]["Stop"][0]["hooks"][0]["command"] = "/gone/python -I -m devdash record stop"
+    settings["hooks"]["Stop"][0]["hooks"][0]["command"] = "/gone/python -I -m looma record stop"
     del settings["hooks"]["SessionEnd"]
     claude_settings_path().write_text(json.dumps(settings))
     [problem] = record.health()["problems"]
@@ -487,7 +487,7 @@ def test_health_names_hooks_that_cannot_record_and_repair_fixes_them(repo):
 
 
 def test_prompts_left_open_by_a_dead_session_are_closed_with_what_was_seen(repo):
-    from devdash.capture import record
+    from looma.capture import record
 
     connect_claude(repo)
     send("user-prompt-submit", repo, prompt="long ago")

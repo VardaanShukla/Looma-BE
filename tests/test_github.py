@@ -9,8 +9,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from conftest import git
-from devdash import github
-from devdash.api.app import create_app
+from looma import github
+from looma.api.app import create_app
 
 
 def client():
@@ -63,16 +63,16 @@ class FakeGitHub:
                     return self._send({"installations": [{"id": 7}]})
                 if self.path.startswith("/user/installations/7/repositories"):
                     return self._send({"repositories": [
-                        {"full_name": "vardaan/devdash", "private": True, "description": "It", "default_branch": "main",
-                         "html_url": "https://github.com/vardaan/devdash", "clone_url": "x", "pushed_at": "2026-10-27T10:00:00Z"},
+                        {"full_name": "vardaan/looma", "private": True, "description": "It", "default_branch": "main",
+                         "html_url": "https://github.com/vardaan/looma", "clone_url": "x", "pushed_at": "2026-10-27T10:00:00Z"},
                         {"full_name": "vardaan/old", "private": False, "html_url": "u", "pushed_at": "2025-01-01T00:00:00Z"}]})
                 if self.path.startswith("/user/repos?"):
                     return self._send([{"full_name": "vardaan/everything", "private": False, "html_url": "u",
                                         "pushed_at": "2026-10-01T00:00:00Z"}])
-                if self.path.startswith("/repos/vardaan/devdash/pulls"):
+                if self.path.startswith("/repos/vardaan/looma/pulls"):
                     return self._send([{"number": 4, "title": "Add Ask", "user": {"login": "vardaan"}, "draft": False,
                                         "head": {"ref": "ask"}, "base": {"ref": "main"},
-                                        "html_url": "https://github.com/vardaan/devdash/pull/4", "updated_at": "now"}])
+                                        "html_url": "https://github.com/vardaan/looma/pull/4", "updated_at": "now"}])
                 return self._send({"message": "Not Found"}, 404)
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
@@ -84,7 +84,7 @@ class FakeGitHub:
 def fake(monkeypatch):
     server = FakeGitHub()
     monkeypatch.setattr(github, "CLIENT_ID", "Iv1.test")
-    monkeypatch.setattr(github, "APP_NAME", "devdash-test")
+    monkeypatch.setattr(github, "APP_NAME", "looma-test")
     monkeypatch.setattr(github, "WEB", server.url)
     monkeypatch.setattr(github, "API", server.url)
     github._pending.clear()
@@ -104,19 +104,19 @@ def test_connecting_with_a_code_then_listing_repos_and_pull_requests(fake, repo)
     fake.entered = True
     done = api.post("/api/github/poll", json={}).json()
     assert (done["connected"], done["login"], done["code"]) == (True, "vardaan", None)
-    assert done["install_url"].endswith("/apps/devdash-test/installations/new")
+    assert done["install_url"].endswith("/apps/looma-test/installations/new")
     assert all(form.get("client_id") == "Iv1.test" and "client_secret" not in form for _, form in fake.forms)
 
     # A project cloned from one of them is marked as such; newest activity first.
-    git(repo, "remote", "add", "origin", "git@github.com:vardaan/devdash.git")
+    git(repo, "remote", "add", "origin", "git@github.com:vardaan/looma.git")
     api.post("/api/repos", json={"path": str(repo)})
     listed = api.get("/api/github/repos").json()
-    assert [r["full_name"] for r in listed] == ["vardaan/devdash", "vardaan/old"]
+    assert [r["full_name"] for r in listed] == ["vardaan/looma", "vardaan/old"]
     assert listed[0]["tracked"] == str(repo) and listed[1]["tracked"] is None
 
     [project] = api.get("/api/repos").json()
     pulls = api.get(f"/api/repos/{project['id']}/pulls").json()
-    assert pulls["repo"] == "vardaan/devdash" and pulls["pulls"][0]["title"] == "Add Ask"
+    assert pulls["repo"] == "vardaan/looma" and pulls["pulls"][0]["title"] == "Add Ask"
     assert pulls["pulls"][0]["branch"] == "ask"
 
     assert api.request("DELETE", "/api/github", json={}).json()["connected"] is False
@@ -144,7 +144,7 @@ def test_not_set_up_yet_says_so(monkeypatch):
     api = client()
     assert api.get("/api/github").json()["configured"] is False
     failed = api.post("/api/github/connect", json={})
-    assert failed.status_code == 502 and "DEVDASH_GITHUB_CLIENT_ID" in failed.json()["detail"]
+    assert failed.status_code == 502 and "LOOMA_GITHUB_CLIENT_ID" in failed.json()["detail"]
 
 
 def test_cloning_adds_the_project_and_keeps_the_token_out_of_the_clone(repo, tmp_path, monkeypatch):

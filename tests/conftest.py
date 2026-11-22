@@ -4,13 +4,13 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def devdash_home(tmp_path, monkeypatch):
-    home = tmp_path / "devdash-home"
-    monkeypatch.setenv("DEVDASH_HOME", str(home))
+def looma_home(tmp_path, monkeypatch):
+    home = tmp_path / "looma-home"
+    monkeypatch.setenv("LOOMA_HOME", str(home))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude-config"))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "codex-home"))
-    monkeypatch.setenv("DEVDASH_ANTIGRAVITY_CONFIG", str(tmp_path / "antigravity-config"))
-    monkeypatch.delenv("DEVDASH_INTERNAL", raising=False)
+    monkeypatch.setenv("LOOMA_ANTIGRAVITY_CONFIG", str(tmp_path / "antigravity-config"))
+    monkeypatch.delenv("LOOMA_INTERNAL", raising=False)
     return home
 
 
@@ -29,3 +29,10 @@ def repo(tmp_path):
 
 def git(cwd, *args):
     return subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True).stdout
+
+
+def connect_claude(path):
+    """A project set up to record Claude Code, as most tests need."""
+    from looma.capture.install import connect_tool
+
+    return connect_tool(path, "claude")

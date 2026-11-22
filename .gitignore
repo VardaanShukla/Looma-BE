@@ -5,5 +5,7 @@ __pycache__/
 build/
 dist/
 
-# Looma's own files inside a project it records (its prompt file and request inbox).
+# Looma's own files inside a project it records (its prompt file and request inbox), under
+# its old name too.
+.looma/
 .devdash/

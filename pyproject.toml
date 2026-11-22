@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "devdash"
+name = "looma"
 version = "0.1.0"
 description = "Shows what changed in your code, readable by people who don't read diffs"
 requires-python = ">=3.10"
@@ -15,14 +15,15 @@ dependencies = ["fastapi>=0.110", "uvicorn>=0.29", "psutil>=5.9"]
 dev = ["pytest>=8", "httpx>=0.27"]
 
 [project.scripts]
-devdash = "devdash.cli:main"
-looma = "devdash.cli:main"
+looma = "looma.cli:main"
+# The command's old name, kept so scripts and habits from before the rename still work.
+devdash = "looma.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-devdash = ["store/*.sql", "web/*", "web/**/*"]
+looma = ["store/*.sql", "web/*", "web/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
