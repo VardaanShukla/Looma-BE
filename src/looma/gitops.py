@@ -11,6 +11,7 @@ import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import quote
 
 from looma import compare, git
 from looma.store import connect
@@ -38,6 +39,7 @@ class Plan:
     done: str  # what it did
     may_conflict: bool = False  # it can stop halfway on conflicting files, which isn't a failure
     finish: Callable[[], None] | None = None  # run once every step worked
+    verify: Callable[[str], dict] | None = None  # checks the result with git's output, giving message and url
     notes: list[str] = field(default_factory=list)  # said before it runs, like what can't be undone
 
 
@@ -54,7 +56,10 @@ def status(repo: Path, repo_id: int) -> dict:
         ahead, behind = (int(n) for n in git.run(repo, "rev-list", "--left-right", "--count",
                                                   f"HEAD...{upstream}").split())
     files = _files(repo)
+    url = _remote_url(repo, remote) if remote else ""
     return {
+        "remote_url": clean_url(url) if url else None,
+        "branch_url": remote_web_url(url, upstream.split("/", 1)[1]) if url and upstream else None,
         "branch": branch,
         "head": head,
         "base": base,
@@ -145,6 +150,34 @@ def _remote(repo: Path) -> str | None:
     return "origin" if "origin" in names else (names[0] if names else None)
 
 
+def _remote_url(repo: Path, remote: str) -> str:
+    return git.run(repo, "remote", "get-url", remote, ok=(0, 2, 128)).strip()
+
+
+def clean_url(url: str) -> str:
+    """The remote's address without a login or token that may be written into it."""
+    return re.sub(r"^([a-z][a-z0-9+.-]*://)[^@/]+@", r"\1", url.strip(), flags=re.IGNORECASE)
+
+
+GITHUB = re.compile(r"^(?:https?://(?:[^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+)/(.+?)(?:\.git)?/?$", re.IGNORECASE)
+
+
+def remote_web_url(url: str, branch: str | None = None) -> str | None:
+    """The page for a remote's repository, or one of its branches, on GitHub. None for any other host."""
+    found = GITHUB.match(url.strip())
+    if not found:
+        return None
+    base = f"https://github.com/{found.group(1)}/{found.group(2)}"
+    return f"{base}/tree/{quote(branch, safe='/')}" if branch else base
+
+
+def _where(repo: Path, remote: str) -> str:
+    """The remote as the person knows it: GitHub's owner/name, else its address."""
+    url = _remote_url(repo, remote)
+    found = GITHUB.match(url)
+    return f"GitHub ({found.group(1)}/{found.group(2)})" if found else f"{remote} ({clean_url(url)})"
+
+
 def _upstream(repo: Path, branch: str | None) -> str | None:
     if not branch:
         return None
@@ -178,20 +211,20 @@ def _create(repo: Path, repo_id: int, body: dict) -> Plan:
 
     def finish():
         _log(repo_id, "branch-create", came_from, None, _sha(repo, name), {"name": name, "from": came_from},
-             f"Made the branch {name} {where}")
-    return Plan([steps], f"Makes the branch {name} {where} and switches to it. Changes you haven't "
-                         "committed come along.", f"Made {name} and switched to it.", finish=finish)
+             f"Started the branch {name} {where}")
+    return Plan([steps], f"Starts a new branch called {name} {where} and moves you onto it. Changes you haven't "
+                         "saved yet come along.", f"Started {name} and moved you onto it.", finish=finish)
 
 
 def _switch(repo: Path, repo_id: int, body: dict) -> Plan:
     name = _name(body.get("name"))
     if _local_branch(repo, name):
-        return Plan([["switch", name]], f"Switches to {name}. Changes you haven't committed come along.",
-                    f"Switched to {name}.")
+        return Plan([["switch", name]], f"Moves you onto {name}. Changes you haven't saved yet come along.",
+                    f"You're now on {name}.")
     remote = _remote(repo)
     if remote and _sha(repo, f"refs/remotes/{remote}/{name}"):
         return Plan([["switch", "-c", name, "--track", f"{remote}/{name}"]],
-                    f"Makes a copy of {remote}/{name} on this computer and switches to it.", f"Switched to {name}.")
+                    f"Gets {name} from {remote} onto this computer and moves you onto it.", f"You're now on {name}.")
     raise GitOpsError(f"There's no branch called {name}.")
 
 
@@ -200,7 +233,7 @@ def _rename(repo: Path, repo_id: int, body: dict) -> Plan:
     new = _new_name(repo, body.get("new_name"))
     notes = []
     if _upstream(repo, old):
-        notes.append("The copy on the remote keeps its old name. The next push makes one with the new name.")
+        notes.append("The copy online keeps its old name; sending this branch again puts it there under the new name.")
 
     def finish():
         _log(repo_id, "branch-rename", git.branch(repo), None, None, {"old": old, "new": new},
@@ -233,9 +266,9 @@ def _delete(repo: Path, repo_id: int, body: dict) -> Plan:
 def _stage(repo: Path, repo_id: int, body: dict) -> Plan:
     paths = _paths(body)
     if paths is None:
-        return Plan([["add", "."]], "Adds every changed file to the next commit.", "Added every changed file.")
-    return Plan([["add", "--", *paths]], f"Adds {_count(paths, 'file')} to the next commit.",
-                f"Added {_count(paths, 'file')}.")
+        return Plan([["add", "."]], "Picks every changed file for the next save.", "Picked every changed file.")
+    return Plan([["add", "--", *paths]], f"Picks {_count(paths, 'file')} for the next save.",
+                f"Picked {_count(paths, 'file')}.")
 
 
 def _unstage(repo: Path, repo_id: int, body: dict) -> Plan:
@@ -245,19 +278,19 @@ def _unstage(repo: Path, repo_id: int, body: dict) -> Plan:
     else:  # before the first commit there's nothing to restore from
         steps = ["rm", "--cached", "-r", "-q", "--", *paths]
     what = "every file" if paths == ["."] else _count(paths, "file")
-    return Plan([steps], f"Takes {what} out of the next commit. The edits stay.", f"Took {what} out.")
+    return Plan([steps], f"Leaves {what} out of the next save. The edits stay.", f"Left {what} out.")
 
 
 def _commit(repo: Path, repo_id: int, body: dict) -> Plan:
     message = _message(body)
     if not _staged(repo):
-        raise GitOpsError("Nothing is added to the commit yet. Pick files, or press Add all.")
+        raise GitOpsError("No files are picked for the save yet. Tick the files, or press Select all.")
     branch, before = git.branch(repo), _sha(repo, "HEAD")
 
     def finish():
-        _log(repo_id, "commit", branch, before, _sha(repo, "HEAD"), {}, f"Committed “{_first_line(message)}”")
-    return Plan([["commit", "-m", message]], "Saves the added files as a commit on " + (branch or "this commit") + ".",
-                "Committed.", finish=finish)
+        _log(repo_id, "commit", branch, before, _sha(repo, "HEAD"), {}, f"Saved “{_first_line(message)}”")
+    return Plan([["commit", "-m", message]], "Saves the picked files as one step in your project's history, on " + (branch or "this commit") + ".",
+                "Saved.", finish=finish)
 
 
 def _amend(repo: Path, repo_id: int, body: dict) -> Plan:
@@ -266,15 +299,15 @@ def _amend(repo: Path, repo_id: int, body: dict) -> Plan:
     if not before:
         raise GitOpsError("There's no commit yet to change.")
     if _on_remote(repo, before):
-        raise GitOpsError("The last commit is already pushed. Changing its message would rewrite history other "
-                          "people have, so Looma doesn't. Make a new commit instead.")
+        raise GitOpsError("Your last save is already sent to the remote. Changing it would rewrite history other "
+                          "people have, so Looma won't. Save a new step instead.")
     branch = git.branch(repo)
 
     def finish():
-        _log(repo_id, "amend", branch, before, _sha(repo, "HEAD"), {}, f"Changed the last commit's message to "
+        _log(repo_id, "amend", branch, before, _sha(repo, "HEAD"), {}, f"Changed the message of the last save to "
              f"“{_first_line(message)}”")
     # --only with no paths changes the message alone, leaving added files for the next commit.
-    return Plan([["commit", "--amend", "--only", "-m", message]], "Changes the last commit's message. Its files stay "
+    return Plan([["commit", "--amend", "--only", "-m", message]], "Changes the message of your last save. Its files stay "
                 "the same.", "Changed the message.", finish=finish)
 
 
@@ -292,32 +325,32 @@ def _update(repo: Path, repo_id: int, body: dict) -> Plan:
 
     def finish():
         _log(repo_id, "update", branch, before, _sha(repo, "HEAD"), {},
-             f"Rebased {branch} on {target}" if rebase else f"Merged {target} into {branch}")
-    how = (f"replays this branch's commits on top of {target}, so it reads as if it started there" if rebase
-           else f"merges {target} into {branch}")
-    lead = f"Gets the newest {name} from {remote}, then {how}." if remote else f"{how[0].upper()}{how[1:]}."
-    return Plan(steps, lead, f"{branch} is up to date with {target}.", may_conflict=True, finish=finish)
+             f"Brought the latest from {target} into {branch}")
+    how = (f"puts this branch's own work on top of the newest {name}, as if it had started there" if rebase
+           else f"combines the newest {name} into {branch}")
+    lead = f"Downloads the newest work from {remote}, then {how}." if remote else f"{how[0].upper()}{how[1:]}."
+    return Plan(steps, lead, f"{branch} now has the latest from {name}.", may_conflict=True, finish=finish)
 
 
 def _stash(repo: Path, repo_id: int, body: dict) -> Plan:
     message = (body.get("message") or "").strip()
     if not _files(repo):  # git says so but still succeeds
-        raise GitOpsError("There's nothing to stash: no uncommitted changes.")
+        raise GitOpsError("Nothing to set aside: there are no unsaved changes.")
     steps = ["stash", "push", "--include-untracked"] + (["-m", message] if message else [])
-    return Plan([steps], "Sets your uncommitted changes aside, new files too, and leaves the files as last "
-                "committed.", "Stashed your changes.")
+    return Plan([steps], "Puts your unsaved changes on the shelf, new files too, and leaves the files as they were at your last "
+                "save.", "Put your changes on the shelf.")
 
 
 def _stash_apply(repo: Path, repo_id: int, body: dict) -> Plan:
     ref, entry = _stash_ref(repo, body)
-    return Plan([["stash", "apply", ref]], f"Brings back “{entry['message']}” and keeps it in the list.",
-                "Brought the stash back.", may_conflict=True)
+    return Plan([["stash", "apply", ref]], f"Brings back “{entry['message']}” and keeps a copy on the shelf.",
+                "Brought your changes back.", may_conflict=True)
 
 
 def _stash_pop(repo: Path, repo_id: int, body: dict) -> Plan:
     ref, entry = _stash_ref(repo, body)
-    return Plan([["stash", "pop", ref]], f"Brings back “{entry['message']}” and takes it off the list (if a file "
-                "conflicts it stays on the list).", "Brought the stash back.", may_conflict=True)
+    return Plan([["stash", "pop", ref]], f"Brings back “{entry['message']}” and takes it off the shelf (if a file "
+                "conflicts it stays on the shelf).", "Brought your changes back.", may_conflict=True)
 
 
 def _stash_drop(repo: Path, repo_id: int, body: dict) -> Plan:
@@ -325,37 +358,57 @@ def _stash_drop(repo: Path, repo_id: int, body: dict) -> Plan:
 
     def finish():
         _log(repo_id, "stash-drop", git.branch(repo), None, None, {"sha": entry["sha"], "message": entry["message"]},
-             f"Dropped the stash “{entry['message']}”")
-    return Plan([["stash", "drop", ref]], f"Throws away “{entry['message']}”.", "Dropped the stash.", finish=finish)
+             f"Threw away the shelved changes “{entry['message']}”")
+    return Plan([["stash", "drop", ref]], f"Throws away “{entry['message']}”.", "Threw them away.", finish=finish)
 
 
 def _push(repo: Path, repo_id: int, body: dict) -> Plan:
     branch = _on_branch(repo)
     remote = _remote(repo)
     if not remote:
-        raise GitOpsError("This project has no remote to push to.")
+        raise GitOpsError("This project isn't connected to GitHub or any other remote, so there's nowhere to send it.")
     if not _sha(repo, "HEAD"):
         raise GitOpsError("There's nothing to push before the first commit.")
-    notes = ["A push can't be undone from Looma: the commits are on the remote for everyone."]
+    notes = ["This can't be undone from Looma: once sent, everyone with access to the repository can see it."]
+
+    def verify(output: str) -> dict:
+        # Git's exit code only says it didn't fail. Ask the remote what it has now.
+        head = _sha(repo, "HEAD")
+        where = _where(repo, remote)
+        try:
+            listed = _git(repo, ["ls-remote", "--heads", remote, f"refs/heads/{branch}"]).stdout.split()
+        except GitOpsError:
+            return {"message": f"Sent {branch} to {where}. Looma couldn't double-check what's there."}
+        there = listed[0] if listed else None
+        url = remote_web_url(_remote_url(repo, remote), branch)
+        if there == head:
+            if "up-to-date" in output.lower():
+                return {"message": f"Nothing new to send: {where} already has everything on {branch}.", "url": url}
+            return {"message": f"Sent {branch} to {where}. It's there now.", "url": url}
+        if there:
+            return {"message": f"Git said it sent it, but {where} has an older {branch} ({there[:7]} instead of {head[:7]}). "
+                               "The remote may have rules for this branch."}
+        return {"message": f"Git said it sent it, but {where} doesn't list {branch}. Check the remote's rules for it."}
     if _upstream(repo, branch):
-        return Plan([["push"]], f"Sends this branch's new commits to {remote}.", f"Pushed {branch}.", notes=notes)
+        return Plan([["push"]], f"Sends the saved changes on this branch to {remote}.", f"Sent {branch}.", notes=notes,
+                    verify=verify)
     return Plan([["push", "--set-upstream", remote, branch]], f"Puts {branch} on {remote} for the first time, and "
-                "remembers it for later pushes and pulls.", f"Pushed {branch}.", notes=notes)
+                "remembers it for next time.", f"Sent {branch}.", notes=notes, verify=verify)
 
 
 def _pull(repo: Path, repo_id: int, body: dict) -> Plan:
     branch = _on_branch(repo)
     upstream = _upstream(repo, branch)
     if not upstream:
-        raise GitOpsError(f"{branch} isn't on the remote yet, so there's nothing to pull. Push it first.")
+        raise GitOpsError(f"{branch} isn't online yet, so there's nothing to get. Send it first.")
     rebase = body.get("how") == "rebase"
     steps = ["pull", "--rebase", "--autostash"] if rebase else ["pull", "--no-rebase", "--no-edit", "--autostash"]
     before = _sha(repo, "HEAD")
 
     def finish():
-        _log(repo_id, "pull", branch, before, _sha(repo, "HEAD"), {}, f"Pulled {upstream} into {branch}")
-    return Plan([steps], f"Gets the new commits on {upstream} and " + ("puts this branch's own commits on top of them."
-                if rebase else "merges them into this branch."), f"{branch} is up to date with {upstream}.",
+        _log(repo_id, "pull", branch, before, _sha(repo, "HEAD"), {}, f"Got the latest for {branch} from {upstream}")
+    return Plan([steps], f"Downloads what's new on {upstream} and " + ("puts this branch's own work on top of it."
+                if rebase else "combines it into this branch."), f"{branch} now has the latest.",
                 may_conflict=True, finish=finish)
 
 
@@ -422,11 +475,13 @@ def perform(repo: Path, repo_id: int, action: str, body: dict, preview: bool = F
         raise GitOpsError(f"A {kind} stopped halfway. Finish it (fix the files, then Continue) or Abort it first.")
     plan = planner(repo, repo_id, body)
     result = {"commands": [_shown(step) for step in plan.steps], "summary": plan.summary, "notes": plan.notes,
-              "done": False, "message": plan.summary, "conflicts": []}
+              "done": False, "message": plan.summary, "conflicts": [], "url": None}
     if preview:
         return result
+    output = ""
     for step in plan.steps:
         ran = _git(repo, step)
+        output += f"{ran.stdout}\n{ran.stderr}\n"
         if ran.returncode != 0:
             conflicts = [item["path"] for item in _files(repo) if item["conflict"]]
             if plan.may_conflict and conflicts:
@@ -436,14 +491,15 @@ def perform(repo: Path, repo_id: int, action: str, body: dict, preview: bool = F
             raise GitOpsError(_plain(ran))
     if plan.finish:
         plan.finish()
-    return {**result, "done": True, "message": plan.done}
+    checked = plan.verify(output) if plan.verify else {}
+    return {**result, "done": True, "message": checked.get("message", plan.done), "url": checked.get("url")}
 
 
 def staged_diff(repo: Path) -> tuple[str, list[str]]:
     """What the next commit holds, for writing its message."""
     files = [name for name in git.run(repo, "diff", "--cached", "--name-only", "-z").split("\0") if name]
     if not files:
-        raise GitOpsError("Nothing is added to the commit yet. Pick files, or press Add all.")
+        raise GitOpsError("No files are picked for the save yet. Tick the files, or press Select all.")
     return git.run(repo, "diff", "--cached", "--stat") + "\n" + git.run(repo, "diff", "--cached"), files
 
 
@@ -513,7 +569,7 @@ def _undo_steps(repo: Path, row) -> tuple[list[list[str]] | None, str | None]:
 # Running git, and saying what went wrong in plain words.
 
 def _git(repo: Path, args: list[str]) -> subprocess.CompletedProcess:
-    remote = args[0] in ("fetch", "push", "pull")
+    remote = args[0] in ("fetch", "push", "pull", "ls-remote")
     # Never wait for an editor (merge and rebase messages are kept as git writes them) or a password.
     env = {**git.remote_env(), "GIT_EDITOR": "true", "GIT_MERGE_AUTOEDIT": "no"}
     try:
@@ -527,14 +583,14 @@ def _git(repo: Path, args: list[str]) -> subprocess.CompletedProcess:
 
 PLAIN = [
     (re.compile(r"would be overwritten by (checkout|merge|switch)|Please commit your changes or stash them", re.IGNORECASE),
-     "Some of your uncommitted changes would be lost. Commit them, or stash them, first."),
+     "Some of your unsaved changes would be lost. Save them, or put them on the shelf, first."),
     (re.compile(r"not fully merged", re.IGNORECASE),
      "That branch has commits that aren't merged anywhere. Tick Delete anyway to delete it and those commits."),
     (re.compile(r"already exists", re.IGNORECASE), "A branch with that name already exists."),
     (re.compile(r"\[rejected\]|non-fast-forward|fetch first|Updates were rejected", re.IGNORECASE),
-     "The remote has commits this branch doesn't have yet. Pull first, then push."),
-    (re.compile(r"No local changes to save", re.IGNORECASE), "There's nothing to stash: no uncommitted changes."),
-    (re.compile(r"nothing (added )?to commit", re.IGNORECASE), "Nothing is added to the commit yet."),
+     "The remote has newer work than this branch. Get the latest first, then send again."),
+    (re.compile(r"No local changes to save", re.IGNORECASE), "Nothing to set aside: there are no unsaved changes."),
+    (re.compile(r"nothing (added )?to commit", re.IGNORECASE), "No files are picked for the save yet."),
     (re.compile(r"could not read Username|Authentication failed|Permission denied|Could not read from remote|"
                 r"terminal prompts disabled|Host key verification failed", re.IGNORECASE),
      ("Looma couldn't sign in to the remote. Run `git fetch` once in a terminal, where git can ask for your "
@@ -633,7 +689,7 @@ def _stash_ref(repo: Path, body: dict) -> tuple[str, dict]:
     for entry in _stashes(repo):
         if entry["sha"] == sha:
             return f"stash@{{{entry['index']}}}", entry
-    raise GitOpsError("That stash isn't there any more. The list has changed; look again.")
+    raise GitOpsError("Those shelved changes aren't there any more. The list changed; look again.")
 
 
 def _count(items: list, word: str) -> str:

@@ -76,7 +76,7 @@ def test_add_commit_then_undo_puts_the_changes_back_added(repo):
     api, repo_id = setup(repo)
     (repo / "a.py").write_text("a = 1\n")
     (repo / "b.py").write_text("b = 1\n")
-    assert "Nothing is added" in refused(api, repo_id, "commit", message="nothing yet")
+    assert "No files are picked" in refused(api, repo_id, "commit", message="nothing yet")
     act(api, repo_id, "stage", paths=["a.py"])
     staged = {f["path"]: f["staged"] for f in status(api, repo_id)["files"]}
     assert staged == {"a.py": "added", "b.py": None}
@@ -86,7 +86,7 @@ def test_add_commit_then_undo_puts_the_changes_back_added(repo):
     assert git(repo, "log", "-1", "--format=%s").strip() == "Add a"
 
     last = status(api, repo_id)["last"]
-    assert last["summary"] == "Committed “Add a”" and last["undoable"]
+    assert last["summary"] == "Saved “Add a”" and last["undoable"]
     act(api, repo_id, "undo")
     assert git(repo, "log", "-1", "--format=%s").strip() == "initial"
     assert {f["path"]: f["staged"] for f in status(api, repo_id)["files"]}["a.py"] == "added"
@@ -210,7 +210,7 @@ def test_conflict_stops_midway_then_abort_or_fix_and_continue(repo):
 
 def test_stash_apply_pop_drop_and_bring_a_dropped_one_back(repo):
     api, repo_id = setup(repo)
-    assert "nothing to stash" in refused(api, repo_id, "stash")
+    assert "Nothing to set aside" in refused(api, repo_id, "stash")
     (repo / "app.py").write_text("work\n")
     (repo / "new.py").write_text("n = 1\n")
     act(api, repo_id, "stash", message="half done")
@@ -229,31 +229,36 @@ def test_stash_apply_pop_drop_and_bring_a_dropped_one_back(repo):
     assert back["sha"] == entry["sha"]
     act(api, repo_id, "stash-pop", sha=back["sha"])
     assert status(api, repo_id)["stashes"] == [] and (repo / "app.py").read_text() == "work\n"
-    assert "isn't there any more" in refused(api, repo_id, "stash-drop", sha=back["sha"])
+    assert "aren't there any more" in refused(api, repo_id, "stash-drop", sha=back["sha"])
 
 
 def test_push_a_new_branch_then_pull_what_others_pushed(repo, tmp_path):
     remote, local = cloned(repo, tmp_path)
     api, repo_id = setup(local)
     act(api, repo_id, "branch-create", name="feature")
-    assert "isn't on the remote yet" in refused(api, repo_id, "pull")
+    assert "isn't online yet" in refused(api, repo_id, "pull")
     (local / "f.py").write_text("f = 1\n")
     act(api, repo_id, "stage")
     act(api, repo_id, "commit", message="Add f")
 
     shown = act(api, repo_id, "push", preview=True)
     assert shown["commands"] == ["git push --set-upstream origin feature"] and shown["notes"]
-    act(api, repo_id, "push")
+    sent = act(api, repo_id, "push")
+    assert sent["message"].startswith("Sent feature to origin (") and "It's there now" in sent["message"]
+    assert sent["url"] is None  # a folder on this computer, not GitHub
+    again = act(api, repo_id, "push")
+    assert again["message"].startswith("Nothing new to send")
     found = status(api, repo_id)
     assert (found["upstream"], found["ahead"], found["pushed"]) == ("origin/feature", 0, True)
-    assert "already pushed" in refused(api, repo_id, "amend", message="new words")
+    assert found["branch_url"] is None and found["remote_url"].endswith("remote.git")
+    assert "already sent" in refused(api, repo_id, "amend", message="new words")
     assert not status(api, repo_id)["last"]["undoable"]  # the commit is on the remote now
 
     push_from_elsewhere(remote, tmp_path, "feature", "g.py", "g = 1\n")
     (local / "h.py").write_text("h = 1\n")
     act(api, repo_id, "stage")
     act(api, repo_id, "commit", message="Add h")
-    assert "Pull first" in refused(api, repo_id, "push")
+    assert "Get the latest first" in refused(api, repo_id, "push")
     act(api, repo_id, "pull")
     assert (local / "g.py").exists()
     act(api, repo_id, "push")
@@ -302,3 +307,15 @@ def test_unknown_action_and_one_without_git(repo, tmp_path):
     folder.mkdir()
     added = api.post("/api/repos", json={"path": str(folder)}).json()
     assert api.get(f"/api/repos/{added['id']}/git").status_code == 409
+
+
+def test_github_addresses_become_links_and_logins_are_never_shown():
+    from looma.gitops import clean_url, remote_web_url
+
+    for url in ("https://github.com/VardaanShukla/DevDash-BE.git", "git@github.com:VardaanShukla/DevDash-BE.git",
+                "ssh://git@github.com/VardaanShukla/DevDash-BE", "https://tok3n@github.com/VardaanShukla/DevDash-BE/"):
+        assert remote_web_url(url, "feature/login") == "https://github.com/VardaanShukla/DevDash-BE/tree/feature/login"
+        assert remote_web_url(url) == "https://github.com/VardaanShukla/DevDash-BE"
+    assert remote_web_url("https://gitlab.com/a/b.git", "main") is None
+    assert clean_url("https://user:secret@github.com/a/b.git") == "https://github.com/a/b.git"
+    assert clean_url("git@github.com:a/b.git") == "git@github.com:a/b.git"
